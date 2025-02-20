@@ -1,0 +1,8 @@
+multirun
+wandb
+outputs
+data
+plotting
+testing
+*.pyc
+mlp_testing
