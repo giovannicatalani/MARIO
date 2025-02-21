@@ -21,7 +21,7 @@ data:
 
   conditioning_features:
     - point_cloud_field/inlet_velocity
-    - scalars/geometry_code
+    - scalars/airfoil_metrics
 
 
   callbacks:
