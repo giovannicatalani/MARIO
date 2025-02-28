@@ -33,6 +33,8 @@ data:
       _target_: utils.callbacks.BoundaryLayerInput
       thickness: 0.02
       decay: 'squared'
+    -
+      _target_: utils.callbacks.ThickCambCondition
     
 normalization:
   default:
@@ -56,6 +58,7 @@ model:
 
 training:
   save_path: './outputs/test.pt'
+  log_path: './outputs/logs'
 
   learning_rate: 0.001
   epochs: 1000

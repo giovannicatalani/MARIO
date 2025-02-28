@@ -34,15 +34,15 @@ def main(cfg):
             ]
 ##########################################################
 #  Data loading
-    train_data = af.dataset.load(root=cfg.data.folder_path, task='scarce', train=True)
-    val_data = af.dataset.load(root=cfg.data.folder_path, task='scarce', train=False)
+    #train_data = af.dataset.load(root=cfg.data.folder_path, task='scarce', train=True)
+    #val_data = af.dataset.load(root=cfg.data.folder_path, task='scarce', train=False)
 
-    train_set = MlDataset(process_dataset(train_data))
-    val_set = MlDataset(process_dataset(val_data))
+    #train_set = MlDataset(process_dataset(train_data))
+    #val_set = MlDataset(process_dataset(val_data))
 
     # if data is saved as pyoche samples (can be done with the save_to_pch.py script)
-    # train_set = MlDataset.from_folder(cfg.data.folder_path_train)
-    # val_set = MlDataset.from_folder(cfg.data.folder_path_val)
+    train_set = MlDataset.from_folder(cfg.data.folder_path_train)
+    val_set = MlDataset.from_folder(cfg.data.folder_path_val)
 
     datacallbacks.after_train_dataset_load(train_set)
     datacallbacks.after_val_dataset_load(val_set)
