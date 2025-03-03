@@ -234,9 +234,8 @@ def process_dataset(dataset):
             # "scalars": {"geometry_code": codes[i]}
         })
 
-        pyoche_sample.name = names[i]
+        pyoche_sample.name = names[i]+'.h5'
         sample_list.append(pyoche_sample)
-        break
     return sample_list
 
 
