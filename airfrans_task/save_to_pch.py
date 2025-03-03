@@ -3,8 +3,8 @@ import pyoche as pch
 from utils.funcs import process_dataset
 
 
-train_dataset = af.dataset.load(root='/path/to/airfrans_dataset/', task='scarce', train=True)
-test_dataset = af.dataset.load(root='/path/to/airfrans_dataset/', task='scarce', train=False)
+train_dataset = af.dataset.load(root='path/to/airfrans/dataset/', task='scarce', train=True)
+test_dataset = af.dataset.load(root='path/to/airfrans/dataset/', task='scarce', train=False)
 
 pyoche_data = pch.MlDataset(process_dataset(train_dataset))
 pyoche_data_test = pch.MlDataset(process_dataset(test_dataset))

@@ -6,3 +6,5 @@ plotting
 testing
 *.pyc
 mlp_testing
+*.ipynb
+plots

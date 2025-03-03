@@ -17,12 +17,19 @@ pip install pyoche
 
 ### Training
 
-The training script uses Hydra for configuration management. The main configuration parameters are defined in `config.yaml`. To train the model:
+The training script uses Hydra for configuration management. The main configuration parameters are defined in `config.yaml`. The training script expects to load the data in the pyoche format, to convert the Airfrans dataset in pyoche format it is possible to run the script:
+```bash
+# Train with default configuration
+python save_to_pch.py
+```
+making sure to indicate the location to the airfrans dataset path on your local machine.
+ To train the model:
 
 ```bash
 # Train with default configuration
 python train.py
 ```
+making sure to indicate the location of the dataset (pre-saved in pyoche format) in the config.yaml file.
 
 #### Override specific parameters
 

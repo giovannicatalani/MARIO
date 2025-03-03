@@ -6,8 +6,8 @@ defaults:
 d: False
 
 data:
-  folder_path_train: "/scratch/daep/j.fesquet/data/AirfRANS_scarce_train.pch"
-  folder_path_val: "/scratch/daep/j.fesquet/data/AirfRANS_scarce_test.pch"
+  folder_path_train: "/scratch/dmsm/gi.catalani/Airfrans/af_train.pch"
+  folder_path_val: "/scratch/dmsm/gi.catalani/Airfrans/af_test.pch"
   input_features: 
     - point_cloud_field/coordinates
     - point_cloud_field/distance_function
