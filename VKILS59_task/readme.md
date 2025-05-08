@@ -18,7 +18,7 @@ This folder contains the training pipeline for the **VKILS59** blade dataset usi
 
 2. **Flow Model Training** (`train_flow.py`)
 
-   * Uses the precomputed SDF modulations as geometric conditioning.
+   * Uses the precomputed SDF latents as geometric conditioning.
    * Specify the path to the saved `.npz` modulations in `config_out.yaml` under `dataset.train_latents_path` and  `dataset.test_latents_path`.
 
 ---
@@ -31,11 +31,6 @@ This folder contains the training pipeline for the **VKILS59** blade dataset usi
 cd VKILS59_task
 python train_sdf.py \
 ```
-
-* **Outputs:**
-
-  * `outputs/sdf_encoder_<timestamp>/modulations/train_<latent_dim>.npz`
-  * `outputs/sdf_encoder_<timestamp>/modulations/test_<latent_dim>.npz`
 
 ### 2. Train Flow Model
 
