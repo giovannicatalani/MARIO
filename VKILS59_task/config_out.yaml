@@ -1,0 +1,44 @@
+saved_model_path:
+restart_training: False
+
+dataset:
+  train_path: /scratch/daep/j.fesquet/data/vkils59.pch
+  test_path:  /scratch/daep/j.fesquet/data/vkils59_test.pch
+  train_latents_path: /home/dmsm/gi.catalani/Projects/vki_shapes/trainings/training_sdf_20250508-142104/modulations/vkisdf_train_16.npz
+  test_latents_path:  /home/dmsm/gi.catalani/Projects/vki_shapes/trainings/training_sdf_20250508-142104/modulations/vkisdf_test_16.npz
+optim:
+  batch_size: 4
+  batch_size_val: 
+  lr_inr : 1e-4
+  epochs : 2000
+  lr_mlp : 1e-4
+  weight_decay_mlp: 0
+  num_points: 5000
+
+inr:
+  model_type : "ms_fourier_features"
+  latent_dim : 18 #set this to dim latent geom + inflow condtions dim
+  in_dim : 3
+  out_dim : 2
+  out_scalar_dim : 6
+  depth : 6
+  hidden_dim : 256
+  w0 :
+  use_latent: True
+  modulate_scale: False
+  modulate_shift: True
+  hypernet_depth: 3
+  hypernet_width: 256
+  frequency_embedding: 'gaussian'
+  include_input: True
+  scale: [1]
+  num_frequencies: 64
+  max_frequencies: 8
+  base_frequency: 1.25
+  last_activation: 
+  loss_type: "mse"
+  add_cond_in: False
+  add_sdf_in: 
+  global_norm: False
+
+
