@@ -1,36 +1,64 @@
-# Airfrans Task
+# Aifrans Task
 
-![MARIO Architecture](/figures/mario_architecture-1.png)
-*MARIO’s multiscale Fourier features + hypernetwork modulation.*
+This folder contains the training pipeline for the Airfrans Dataset using MARIO architecture.
 
 ---
 
-**Geometric conditioning** currently uses:
 
-* Camber line
-* Thickness distribution
+## Workflow Overview
 
-> ⚠️ SDF encoding support is not yet implemented.
+1. **SDF Encoder Training** (`train_sdf.py`)
+
+   * Configured via `config_sdf.yaml`
+   * Produces latent **modulations** for each blade geometry.
+   * Modulations are saved under the `trainings/training_sdf_<timestamp>/modulations/` directory.
+
+2. **Flow Model Training** (`train_flow.py`)
+
+   * Uses the precomputed SDF latents as geometric conditioning.
+   * Specify the path to the saved `.npz` modulations in `config_out.yaml` under `dataset.train_latents_path` and  `dataset.test_latents_path`.
 
 ---
 
 ## Usage
 
-1. **Convert** the Airfrans dataset to Pyoche format:
+### 1. Train SDF Encoder
 
-   ```bash
-   cd airfrans_task
-   python save_to_pch.py \
-     dataset.path=/path/to/airfrans/data \
-     out_dir=pyoche_data
-   ```
-2. **Train** the MARIO model:
+```bash
+cd airfans_task
+python train_sdf.py \
+```
 
-   ```bash
-   python train.py
-   ```
-3. **Override** any Hydra parameter:
+### 2. Train Flow Model
 
-   ```bash
-   python train.py optim.batch_size=8 inr.latent_dim=32
-   ```
+Edit `config_out.yaml` to set modulations path.
+
+Then run:
+
+```bash
+python train.py \
+
+```
+
+* **Outputs:**
+
+  * Checkpoints under `trainings/training_result_<timestamp>/`
+  * Loss curves and validation plots in the same directory as well as filed and scalar predictions.
+
+### Override Parameters
+
+You can override any Hydra parameter on the command line. For example:
+
+```bash
+# Change batch size and latent dimension
+python train_sdf.py optim.batch_size=8 inr.latent_dim=32
+
+# Change learning rate for flow model
+python train_flow.py optim.lr_flow=5e-4
+```
+
+---
+
+## Data
+
+Data can be obtained by install the airfrans package.
