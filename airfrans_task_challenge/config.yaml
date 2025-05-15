@@ -1,0 +1,140 @@
+# config.yaml
+defaults:
+  - _self_
+
+# debug
+d: False
+
+data:
+  folder_path_train: "/scratch/dmsm/gi.catalani/Airfrans/af_train.pch"
+  folder_path_val: "/scratch/dmsm/gi.catalani/Airfrans/af_test.pch"
+  input_features: 
+    - point_cloud_field/coordinates
+    - point_cloud_field/distance_function
+    - point_cloud_field/normals
+    - point_cloud_field/bl_layer
+
+  output_features: 
+    - point_cloud_field/velocity
+    - point_cloud_field/pressure
+    - point_cloud_field/turbulent_viscosity
+
+  conditioning_features:
+    - point_cloud_field/inlet_velocity
+    - scalars/airfoil_metrics
+
+
+  callbacks:
+    -
+      _target_: utils.callbacks.FilterSample
+      sample_name_list:
+        - airFoil2D_SST_50.077_-4.416_2.834_4.029_1.0_5.156
+    -
+      _target_: utils.callbacks.BoundaryLayerInput
+      thickness: 0.02
+      decay: 'squared'
+    -
+      _target_: utils.callbacks.ThickCambCondition
+    
+normalization:
+  default:
+    input_features: pyoche.ml.normalize.CenteredMinMaxScaler
+    output_features: pyoche.ml.normalize.StdScaler
+    conditioning_features: pyoche.ml.normalize.CenteredMinMaxScaler
+
+  scalers:
+    point_cloud_field/is_surf: pyoche.ml.normalize.IdScaler
+
+model:
+  _target_: mario.Mario
+  num_frequencies: 128
+  width: 256
+  depth: 6
+  width_hnn: 256
+  depth_hnn: 4
+  include_input: True
+  scales: [0.5, 1, 1.5]
+
+
+training:
+  save_path: './outputs/test.pt'
+  log_path: './outputs/logs'
+
+  learning_rate: 0.001
+  epochs: 1000
+
+  batch_size: 4
+  cb_max_batch: null
+
+  seed: 42
+
+  lrs_factor: 0.8
+  lrs_patience: 10
+
+  plot_sample: 0
+
+  callbacks:
+
+    -
+      _target_: utils.callbacks.LogFieldWiseMSE
+      log_dir: ${training.log_path}
+      field_names: ${data.output_features}
+
+    -
+      _target_: utils.callbacks.LogFullFieldWiseMSE
+      log_dir: ${training.log_path}
+      every_n_epoch: 15
+      field_names: ${data.output_features}
+    
+    -
+      _target_: utils.callbacks.SurfMSE
+      log_dir: ${training.log_path}
+      every_n_epoch: 1
+      field_names: ${data.output_features}
+
+    -
+      _target_: utils.callbacks.LRScheduler
+      scheduler: 
+        _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+        mode: "min"
+        factor: ${training.lrs_factor}
+        patience: ${training.lrs_patience}
+    
+    -
+      _target_: dataloader.DloaderSubsample
+
+    -
+      _target_: utils.callbacks.ClipGradients
+      max_norm: 1
+
+    -
+      _target_: utils.callbacks.LogLoss
+      log_dir: ${training.log_path}
+    
+    -
+      _target_: utils.callbacks.SaveModel
+      save_path: ${training.save_path}
+      every_n_epoch: 50
+
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: ${training.learning_rate}
+    weight_decay: 0
+
+  loss:
+    coefficients: 
+      - 1.0
+      - 1.0e-10
+    components:
+      -
+        _target_: utils.loss.MSELoss
+        
+      -
+        _target_: utils.loss.L1Regularization
+
+  dataloader:
+    _target_: dataloader.InrVupc
+    input_features: ${data.input_features}
+    output_features: ${data.output_features}
+    conditioning_features: ${data.conditioning_features}
+    num_points: 16000

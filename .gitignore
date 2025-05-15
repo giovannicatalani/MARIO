@@ -8,3 +8,7 @@ testing
 mlp_testing
 *.ipynb
 plots
+trainings
+*.err
+*.out
+*.slurm
