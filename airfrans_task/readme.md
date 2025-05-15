@@ -13,7 +13,7 @@ This folder contains the training pipeline for the Airfrans Dataset using MARIO 
    * Produces latent **modulations** for each blade geometry.
    * Modulations are saved under the `trainings/training_sdf_<timestamp>/modulations/` directory.
 
-2. **Flow Model Training** (`train_flow.py`)
+2. **Flow Model Training** (`train.py`)
 
    * Uses the precomputed SDF latents as geometric conditioning.
    * Specify the path to the saved `.npz` modulations in `config_out.yaml` under `dataset.train_latents_path` and  `dataset.test_latents_path`.
@@ -54,7 +54,7 @@ You can override any Hydra parameter on the command line. For example:
 python train_sdf.py optim.batch_size=8 inr.latent_dim=32
 
 # Change learning rate for flow model
-python train_flow.py optim.lr_flow=5e-4
+python train.py optim.lr_flow=5e-4
 ```
 
 ---
