@@ -2,10 +2,9 @@ saved_model_path:
 restart_training: False
 
 dataset:
-  train_path: /scratch/daep/j.fesquet/data/vkils59.pch
-  test_path:  /scratch/daep/j.fesquet/data/vkils59_test.pch
-  train_latents_path: /home/dmsm/gi.catalani/Projects/vki_shapes/trainings/training_sdf_20250508-142104/modulations/vkisdf_train_16.npz
-  test_latents_path:  /home/dmsm/gi.catalani/Projects/vki_shapes/trainings/training_sdf_20250508-142104/modulations/vkisdf_test_16.npz
+  path: /scratch/dmsm/gi.catalani/VKILS59/
+  train_latents_path: /home/dmsm/gi.catalani/Projects/mario_challenge/VKILS59_task/trainings/training_sdf_20250508-142104/modulations/vkisdf_train_16.npz
+  test_latents_path:  /home/dmsm/gi.catalani/Projects/mario_challenge/VKILS59_task/trainings/training_sdf_20250508-142104/modulations/vkisdf_test_16.npz
 optim:
   batch_size: 4
   batch_size_val: 

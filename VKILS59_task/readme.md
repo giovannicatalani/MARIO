@@ -64,21 +64,5 @@ python train_flow.py optim.lr_flow=5e-4
 
 ## Data
 
-Before running, ensure you have converted the raw Plaid-format VKILS59 data into Pyoche `.pch` files:
-
-```bash
-python convert_to_pch.py \
-  problem.path=raw/problem_definition \
-  dataset.path=raw/dataset \
-  out_dir=pyoche_data
-```
-This is stil under progress.
-Load these in your config under:
-
-```yaml
-dataset:
-  train_pch: vki_task/pyoche_data/train.pch
-  test_pch:  vki_task/pyoche_data/test.pch
-```
-
-*Data handling is done via the `pyoche` library.*
+Data is retrieved from [https://huggingface.co/spaces/PLAIDcompetitions/VKILS59Benchmark](https://huggingface.co/spaces/PLAIDcompetitions/VKILS59Benchmark), more info can be found there.
+The library plaid must be installed to load the data.

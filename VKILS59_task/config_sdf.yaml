@@ -1,22 +1,21 @@
 # config_sdf.yaml
-output_dir: /home/dmsm/gi.catalani/Projects/vki_shapes
+output_dir: /home/dmsm/gi.catalani/Projects/mario_challenge/VKILS59_task
 
 wandb:
   project: vki_sdf
 
 dataset:
-  train_path: /scratch/daep/j.fesquet/data/vkils59.pch
-  test_path:  /scratch/daep/j.fesquet/data/vkils59_test.pch
+  path: /scratch/dmsm/gi.catalani/VKILS59/
   task: vkisdf
 
 optim:
   batch_size: 4
-  epochs: 1000
+  epochs: 500
   inner_steps: 3
   lr_inr: 1e-4
   lr_code: 0.01
   meta_lr_code: 5e-5
-  num_points: 5000
+  num_points: 500
 
 inr:
   model_type: fourier_features

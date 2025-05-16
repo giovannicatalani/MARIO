@@ -7,7 +7,8 @@ import torch.nn as nn
 from pathlib import Path
 from tqdm import tqdm
 import wandb
-import pyoche as pch
+from plaid.containers.dataset import Dataset
+from plaid.problem_definition import ProblemDefinition
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.loader import DataLoader
@@ -23,7 +24,8 @@ from utils.load_models import create_inr_instance, load_inr
 
 @hydra.main(config_path=".", config_name="config_sdf.yaml")
 def main(cfg: DictConfig) -> None:
-    # —── Setup wandb and device
+    # —── Setup wandb and device, configure timeout
+    os.environ["WANDB__SERVICE_WAIT"] = "300"
     wandb.init(
         project=cfg.wandb.project,
         config=OmegaConf.to_container(cfg, resolve=True)
@@ -42,11 +44,16 @@ def main(cfg: DictConfig) -> None:
         yaml.dump(OmegaConf.to_container(cfg, resolve=True), f)
 
     # —── Data loading
-    train_raw = pch.MlDataset.from_folder(cfg.dataset.train_path)
-    test_raw  = pch.MlDataset.from_folder(cfg.dataset.test_path)
+    dataset = Dataset()
+    problem = ProblemDefinition()
 
-    train_ds = vkiSDFDataset(train_raw, is_train=True)
-    test_ds  = vkiSDFDataset(test_raw, is_train=False, coef_norm=train_ds.coef_norm)
+    problem._load_from_dir_(os.path.join(cfg.dataset.path,'problem_definition'))
+    dataset._load_from_dir_(os.path.join(cfg.dataset.path,'dataset'), verbose = True)
+    ids_train = problem.get_split('train')
+    ids_test  = problem.get_split('test')
+    
+    train_ds = vkiSDFDataset(dataset, ids_train, is_train=True)
+    test_ds  = vkiSDFDataset(dataset, ids_test, is_train=False, coef_norm=train_ds.coef_norm)
 
     n_train = len(train_ds)
     n_test  = len(test_ds)

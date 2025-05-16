@@ -27,20 +27,19 @@ class VKIFlowDataset(Dataset):
     def __init__(
         self,
         ml_dataset,
+        idxs,
         geom_latents,
         mode='train',
         coef_norm=None,
         num_points=None,
-        idx_list=None,
         transform=None,
         pre_transform=None
     ):
         super().__init__(None, transform, pre_transform)
         self.ml_dataset = ml_dataset
         self._raw_geom_latents = np.array(geom_latents)
-        total = len(ml_dataset)
-        self.idx_list = list(range(total)) if idx_list is None else list(idx_list)
-        self.geom_latents = self._raw_geom_latents[self.idx_list]
+        self.idxs= idxs
+        self.geom_latents = self._raw_geom_latents
         self.mode = mode
         self.num_points = num_points
         # norms
@@ -56,20 +55,20 @@ class VKIFlowDataset(Dataset):
         pos_all, sdf_all = [], []
         mach_all, nut_all = [], []
         cond_all, scal_all = [], []
-        scalar_keys = ['scalars/Pr','scalars/Q','scalars/Tr',
-                       'scalars/angle_out','scalars/eth_is','scalars/power']
-        for idx in self.idx_list:
+        scalar_keys = ['Pr','Q','Tr',
+                       'angle_out','eth_is','power']
+        for i,idx in enumerate(self.idxs):
             item = self.ml_dataset[idx]
-            pts = np.array(item['mesh/points']).T
-            sdf = np.array(item['mesh/sdf']).T.flatten()
+            pts = np.array(item.get_nodes(base_name="Base_2_2"))
+            sdf = np.array(item.get_field('sdf', base_name="Base_2_2")).T.flatten()
             pos_all.append(pts)
             sdf_all.append(sdf)
             if self.mode in ('train','val'):
-                mach_all.append(np.array(item['mesh/mach']).T.flatten())
-                nut_all.append(np.array(item['mesh/nut']).T.flatten())
-            angles = [float(item['scalars/angle_in']), float(item['scalars/mach_out'])]
-            cond_all.append(np.concatenate([self.geom_latents[self.idx_list.index(idx)], angles]))
-            scal_all.append([float(item[k]) for k in scalar_keys])
+                mach_all.append(np.array(item.get_field('mach', base_name="Base_2_2")).T.flatten())
+                nut_all.append(np.array(item.get_field('nut', base_name="Base_2_2")).T.flatten())
+            angles = [float(item.get_scalar('angle_in')), float(item.get_scalar('mach_out'))]
+            cond_all.append(np.concatenate([self.geom_latents[i], angles]))
+            scal_all.append([float(item.get_scalar(k)) for k in scalar_keys])
         pos_all = np.vstack(pos_all)
         sdf_all = np.hstack(sdf_all)
         pos_min = pos_all.min(axis=0)
@@ -103,12 +102,12 @@ class VKIFlowDataset(Dataset):
     def process_dataset(self):
         data_list = []
         c = self.coef_norm
-        skeys = ['scalars/Pr','scalars/Q','scalars/Tr',
-                 'scalars/angle_out','scalars/eth_is','scalars/power']
-        for i, idx in enumerate(self.idx_list):
+        skeys = ['Pr','Q','Tr',
+                       'angle_out','eth_is','power']
+        for i,idx in enumerate(self.idxs):
             item = self.ml_dataset[idx]
-            pts = np.array(item['mesh/points']).T
-            sdf = np.array(item['mesh/sdf']).T.flatten()
+            pts = np.array(item.get_nodes(base_name="Base_2_2"))
+            sdf = np.array(item.get_field('sdf', base_name="Base_2_2")).T.flatten()
             if self.num_points and pts.shape[0] > self.num_points:
                 sel = np.random.choice(pts.shape[0], self.num_points, replace=False)
                 pts, sdf = pts[sel], sdf[sel]
@@ -123,41 +122,27 @@ class VKIFlowDataset(Dataset):
                 'pos':   torch.tensor(pts_n, dtype=torch.float)  # for batching
             }
             if self.mode in ('train','val'):
-                mach = np.array(item['mesh/mach']).T.flatten()
-                nut  = np.array(item['mesh/nut']).T.flatten()
+                mach = np.array(item.get_field('mach', base_name="Base_2_2")).T.flatten()
+                nut  = np.array(item.get_field('nut', base_name="Base_2_2")).T.flatten()
                 om, os = c['output']['mean'], c['output']['std']
                 out_np = np.stack([(mach-om[0])/os[0], (nut-om[1])/os[1]],1)
                 node_kwargs['output'] = torch.tensor(out_np, dtype=torch.float)
-            angles = [float(item['scalars/angle_in']), float(item['scalars/mach_out'])]
+            angles = [float(item.get_scalar('angle_in')), float(item.get_scalar('mach_out'))]
             raw_cond = np.concatenate([self.geom_latents[i], angles])
             cm, cs = c['cond']['mean'], c['cond']['std']
             cond_n = (raw_cond - cm)/cs
             node_kwargs['cond'] = torch.tensor(cond_n, dtype=torch.float).unsqueeze(0)
             if self.mode in ('train','val'):
-                raw_s = np.array([float(item[k]) for k in skeys])
+                raw_s = np.array([float(item.get_scalar(k)) for k in skeys])
                 sm, ss = c['scalars']['mean'], c['scalars']['std']
                 scal_n = (raw_s - sm)/ss
                 node_kwargs['output_scalars'] = torch.tensor(scal_n, dtype=torch.float).unsqueeze(0)
             data_list.append(Data(**node_kwargs))
         return data_list
 
-    def split_val(self, val_size, seed=None):
-        rng = np.random.RandomState(seed)
-        chosen = rng.choice(self.idx_list, size=val_size, replace=False).tolist()
-        train_idx = [i for i in self.idx_list if i not in chosen]
-        train_ds = VKIFlowDataset(self.ml_dataset, self._raw_geom_latents,
-                                  mode='train', num_points=self.num_points,
-                                  idx_list=train_idx)
-        val_ds   = VKIFlowDataset(self.ml_dataset, self._raw_geom_latents,
-                                  mode='val', coef_norm=self.coef_norm,
-                                  num_points=self.num_points,
-                                  idx_list=chosen)
-        return train_ds, val_ds
-
     def len(self): return len(self.data_list)
 
     def get(self, idx): return self.data_list[idx]
-    
     
     
     
@@ -176,10 +161,11 @@ class vkiSDFDataset(Dataset):
         num_points: subsample each sample to this number of points
         transform, pre_transform: for PyG compatibility
     """
-    def __init__(self, ml_dataset, is_train=True, coef_norm=None, num_points=None,
+    def __init__(self, ml_dataset, idxs, is_train=True, coef_norm=None, num_points=None,
                  transform=None, pre_transform=None):
         super(vkiSDFDataset, self).__init__(None, transform, pre_transform)
         self.ml_dataset = ml_dataset
+        self.idxs = idxs
         self.num_points = num_points
         self.is_train = is_train
 
@@ -196,10 +182,10 @@ class vkiSDFDataset(Dataset):
         """Compute normalization parameters (pos min/max, sdf mean/std) from all samples."""
         all_positions = []
         all_sdf = []
-        for idx in range(len(self.ml_dataset)):
+        for idx in self.idxs:
             item = self.ml_dataset[idx]
-            pts = np.array(item['mesh/points']).T
-            sdf = np.array(item['mesh/sdf']).T
+            pts = np.array(item.get_nodes(base_name="Base_2_2"))
+            sdf = np.array(item.get_field('sdf', base_name="Base_2_2")[np.newaxis]).T
             all_positions.append(pts)
             all_sdf.append(sdf)
         all_positions = np.vstack(all_positions)
@@ -242,10 +228,10 @@ class vkiSDFDataset(Dataset):
         pos_range = pos_max - pos_min
         pos_range[pos_range == 0] = 1.0
 
-        for idx in range(len(self.ml_dataset)):
+        for idx in self.idxs:
             item = self.ml_dataset[idx]
-            pts = np.array(item['mesh/points']).T
-            sdf = np.array(item['mesh/sdf']).T
+            pts = np.array(item.get_nodes(base_name="Base_2_2"))
+            sdf = np.array(item.get_field('sdf', base_name="Base_2_2")[np.newaxis]).T
 
             # Normalize positions to [-1, 1]
             pts_norm = 2 * (pts - pos_min) / pos_range - 1
@@ -273,9 +259,6 @@ class vkiSDFDataset(Dataset):
 
     def get(self, idx):
         return self.data_list[idx]
-    
-
-
 
 
 

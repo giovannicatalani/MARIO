@@ -15,7 +15,8 @@ from omegaconf import DictConfig, OmegaConf
 from utils.load_models import create_inr_instance,load_inr
 from torch_geometric.loader import DataLoader
 import wandb
-import pyoche as pch
+from plaid.containers.dataset import Dataset
+from plaid.problem_definition import ProblemDefinition
 from utils.dataset import VKIFlowDataset, subsample_dataset
 from utils.utils_training import training_step
 from torch.utils.data import Subset
@@ -51,17 +52,24 @@ def main(cfg: DictConfig) -> None:
     latent_cond = True
     
     
-    train_raw = pch.MlDataset.from_folder(cfg.dataset.train_path)
-    test_raw  = pch.MlDataset.from_folder(cfg.dataset.test_path)     
+    # —── Data loading
+    dataset = Dataset()
+    problem = ProblemDefinition()
+
+    problem._load_from_dir_(os.path.join(cfg.dataset.path,'problem_definition'))
+    dataset._load_from_dir_(os.path.join(cfg.dataset.path,'dataset'), verbose = True)
+    ids_train = problem.get_split('train')
+    ids_test  = problem.get_split('test')
+       
     train_latents = np.load(cfg.dataset.train_latents_path)
     test_latents = np.load(cfg.dataset.test_latents_path)
     # Create dataset instance
     # 3) Build the TRAIN-mode dataset (this computes all normalization stats)
     train_ds = VKIFlowDataset(
-        ml_dataset   = train_raw,
-        geom_latents = train_latents['train_modulations'],
-        mode         = 'train',
-    )
+    dataset, ids_train,
+    geom_latents = train_latents['train_modulations'],
+    mode         = 'train')
+    
     # 4) Randomly split off 50 samples for validation
     num_total = len(train_ds)
     val_size  = 50
@@ -80,7 +88,7 @@ def main(cfg: DictConfig) -> None:
 
     # 5) Build the TEST-mode dataset (reusing the same stats from full_train_ds)
     test_dataset = VKIFlowDataset(
-        ml_dataset   = test_raw,
+        dataset, ids_test,
         geom_latents = test_latents['val_modulations'],
         mode         = 'test',
         coef_norm    = coef_norm,

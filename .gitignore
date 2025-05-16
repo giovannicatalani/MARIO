@@ -12,3 +12,4 @@ trainings
 *.err
 *.out
 *.slurm
+cd.
