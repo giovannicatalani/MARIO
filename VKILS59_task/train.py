@@ -317,6 +317,50 @@ def main(cfg: DictConfig) -> None:
     save_path = os.path.join(results_directory, f"{run_name}_predictions.pt")
     torch.save(results, save_path)
     print(f"Saved predictions to {save_path}")
+    
+
+    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+    with torch.no_grad():
+        for graph in val_loader:
+            graph = graph.to(device)
+            # 1) Predict fields (and unnormalize)
+            field_n = inr_model.modulated_forward(
+                graph.input, 
+                graph.cond[graph.batch]
+            )                              # (N, 1), normalized
+            field_n = field_n.cpu()
+            # invert normalization: (x * std + mean)
+            # out_mean/out_std are arrays of length=2, but your output_dim=1,
+            # so we take the first element of each
+            field_unnorm = field_n * out_std + out_mean
+            all_field_preds.append(field_unnorm.squeeze(-1).numpy())
+
+            # 2) Predict scalars (and unnormalize)
+            scal_n = inr_model.predict_scalars(graph.cond)  # (1, 6)
+            scal_n = scal_n.cpu().squeeze(0)
+            scal_unnorm = scal_n * coef_norm['scalars']['std'] + coef_norm['scalars']['mean']
+            all_scalar_preds.append(scal_unnorm.numpy())
+
+            # 3) Recover raw conditions
+            cond_n = graph.cond.cpu().squeeze(0).numpy()     # (cond_dim,)
+            cond_unnorm = cond_n * cond_std + cond_mean     # invert standardization
+            all_cond_raw.append(cond_unnorm)
+
+    # —————————— SAVE EVERYTHING ——————————
+    results_val = {
+        # lists of NumPy arrays, one entry per test sample
+        'fields_pred':  all_field_preds,  
+        'scalars_pred': all_scalar_preds,
+        'conds_raw':    all_cond_raw,
+        # metadata
+        'cond_keys':    ['<latent_0>', '…', 'angle_in', 'angle_out'],
+        'scalar_keys':  ['Pr', 'Q', 'Tr', 'angle_out', 'eth_is', 'power'],
+    }
+
+    save_path = os.path.join(results_directory, f"{run_name}_val_predictions.pt")
+    torch.save(results_val, save_path)
+    print(f"Saved val predictions to {save_path}")
+    return
     return
 
 

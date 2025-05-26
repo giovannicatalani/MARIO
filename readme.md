@@ -1,6 +1,6 @@
 # MARIO: Multiscale Aerodynamic Resolution Invariant Operator
 
-This repository contains the implementation of MARIO, a conditional neural field architecture for predicting aerodynamic fields around airfoils. 
+This repository contains the implementation of MARIO, a conditional neural field architecture for predicting aerodynamic fields around airfoils. The original paper of MARIO is available in preprint at [Towards scalable surrogate models based on Neural Fields for large scale aerodynamic simulations](https://arxiv.org/abs/2505.14704).
 MARIO achieved the 3rd Place at the [ML4CFD Challenge at Neurips 2024](https://neurips.cc/virtual/2024/competition/84799) and is currently one of the top models on the [PLAID benchmark](https://huggingface.co/PLAIDcompetitions) on Hugging Face.
 
 MARIO is a conditional Neural Field architecture designed for surrogate modeling of large PDEs and it is specialized for aerodynamic applications, although the framework is absolutely general. It can handle paramteric and non parametric geometric variability. In the latter case, a Neural Field encoder is used to learn a latent code on the Signed Distance Function fields (as in the Airfrans and VKI-BLADE test cases). You can refer to the original paper for more information:
