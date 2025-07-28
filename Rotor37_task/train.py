@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import sys
 import yaml
 from pathlib import Path
-from pickletools import OpcodeInfo
+# Line removed as it was unused
 import time
 sys.path.append(str(Path(__file__).parents[1]))
 from tqdm import tqdm
