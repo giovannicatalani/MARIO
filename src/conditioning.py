@@ -81,7 +81,6 @@ def shift_modulation(position, features, layers, activation, with_batch=True):
     return h
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 class CrossAttentionModulation(nn.Module):
