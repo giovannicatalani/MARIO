@@ -7,24 +7,23 @@ import torch.nn as nn
 from pathlib import Path
 from tqdm import tqdm
 import wandb
-import pyoche as pch
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.loader import DataLoader
-
+import pyoche as pch
 # allow imports of your project
 import sys
 sys.path.append(str(Path(__file__).parents[1]))
-import airfrans as af
-from dataset import SDFDataset, subsample_dataset
+
+from dataset import RotorSDFDataset, subsample_dataset
 from src.utils_training import graph_outer_step
 from src.load_models import create_inr_instance, load_inr
 
 
 @hydra.main(config_path=".", config_name="config_sdf.yaml")
 def main(cfg: DictConfig) -> None:
+    # —── Setup wandb and device, configure timeout
     os.environ["WANDB__SERVICE_WAIT"] = "300"
-    # —── Setup wandb and device
     wandb.init(
         project=cfg.wandb.project,
         config=OmegaConf.to_container(cfg, resolve=True)
@@ -43,12 +42,12 @@ def main(cfg: DictConfig) -> None:
         yaml.dump(OmegaConf.to_container(cfg, resolve=True), f)
 
     # —── Data loading
-    train_data, train_names = af.dataset.load(root=cfg.dataset.root_path, task=cfg.dataset.task, train=True)
-    test_data, test_names = af.dataset.load(root=cfg.dataset.root_path, task=cfg.dataset.task, train=False)
-    train_dataset = SDFDataset(train_data, train_names, is_train=True)
-    test_dataset = SDFDataset(test_data, test_names, is_train=False, coef_norm=train_dataset.coef_norm)
-    train_ds = train_dataset.processed_dataset
-    test_ds = test_dataset.processed_dataset
+    train_raw = pch.MlDataset.from_folder(cfg.dataset.train_path)
+    test_raw  = pch.MlDataset.from_folder(cfg.dataset.test_path)
+
+    train_ds = RotorSDFDataset(train_raw, is_train=True)
+    test_ds  = RotorSDFDataset(test_raw, is_train=False, coef_norm=train_ds.coef_norm)
+
     n_train = len(train_ds)
     n_test  = len(test_ds)
 
@@ -167,16 +166,13 @@ def main(cfg: DictConfig) -> None:
     # test modulations
     test_loader = DataLoader(test_ds, batch_size=1, shuffle=False)
     test_mods = []
-    test_loss = 0.0
+
     for batch in test_loader:
         batch = batch.to(device)
         batch.modulations = torch.zeros(batch.num_graphs, cfg.inr.latent_dim, device=device)
         out = graph_outer_step(inr_model, batch, cfg.optim.inner_steps, ckpt["alpha_in"].to(device), is_train=False)
-        test_loss += out["loss"].item() * batch.num_graphs
         test_mods.append(out["modulations"].detach().cpu().numpy())
     test_mods = np.concatenate(test_mods, axis=0)
-    final_test_loss = test_loss / n_test
-    print('Final test loss:', final_test_loss)
 
     mod_dir = results_dir / 'modulations'
     mod_dir.mkdir(exist_ok=True)

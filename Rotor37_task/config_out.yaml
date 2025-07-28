@@ -2,27 +2,24 @@ saved_model_path:
 restart_training: False
 
 dataset:
-  root_path: /scratch/dmsm/gi.catalani/Airfrans/Dataset/
-  task: scarce
-  train_latents_path: /home/dmsm/gi.catalani/Projects/mario_challenge/airfrans_task/trainings/training_sdf_20250515-164202/modulations/scarce_train_8.npz
-  test_latents_path:  /home/dmsm/gi.catalani/Projects/mario_challenge/airfrans_task/trainings/training_sdf_20250515-164202/modulations/scarce_test_8.npz
-
+  path: /scratch/dmsm/gi.catalani/Rotor37/
+  train_latents_path: /home/dmsm/gi.catalani/Projects/rotor37/trainings/training_sdf_20250526-103735/modulations/2dprofilesdf_train_32.npz
+  test_latents_path:  /home/dmsm/gi.catalani/Projects/rotor37/trainings/training_sdf_20250526-103735/modulations/2dprofilesdf_test_32.npz
 optim:
   batch_size: 4
   batch_size_val: 
   lr_inr : 1e-4
-  epochs : 2000
+  epochs : 4000
   lr_mlp : 1e-4
   weight_decay_mlp: 0
   num_points: 5000
 
-
 inr:
   model_type : "ms_fourier_features"
-  latent_dim : 10 #set this to dim latent geom + inflow condtions dim
-  in_dim : 3
-  out_dim : 4
-  out_scalar_dim : 0
+  latent_dim : 34
+  in_dim : 6
+  out_dim : 3
+  out_scalar_dim : 3
   depth : 6
   hidden_dim : 256
   w0 :
@@ -33,7 +30,7 @@ inr:
   hypernet_width: 256
   frequency_embedding: 'gaussian'
   include_input: True
-  scale: [1,2]
+  scale: [1]
   num_frequencies: 64
   max_frequencies: 8
   base_frequency: 1.25

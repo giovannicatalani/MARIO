@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import sys
 import yaml
 from pathlib import Path
-from pickletools import OpcodeInfo
+# Line removed as it was unused
 import time
 sys.path.append(str(Path(__file__).parents[1]))
 from tqdm import tqdm
@@ -17,7 +17,7 @@ from torch_geometric.loader import DataLoader
 import wandb
 from plaid.containers.dataset import Dataset
 from plaid.problem_definition import ProblemDefinition
-from dataset import VKIFlowDataset, subsample_dataset
+from dataset import RotorFlowDataset, subsample_dataset
 from src.utils_training import training_step
 from torch.utils.data import Subset
 
@@ -25,7 +25,7 @@ from torch.utils.data import Subset
 @hydra.main(config_path="", config_name="config_out.yaml")
 def main(cfg: DictConfig) -> None:
     # Initialize wandb
-    wandb.init(project='vki_blade', config=OmegaConf.to_container(cfg, resolve=True))
+    wandb.init(project='rotor_flow', config=OmegaConf.to_container(cfg, resolve=True))
     wandb.config.update({
         "batch_size": cfg.optim.batch_size,
         "lr_inr": cfg.optim.lr_inr,
@@ -58,21 +58,21 @@ def main(cfg: DictConfig) -> None:
 
     problem._load_from_dir_(os.path.join(cfg.dataset.path,'problem_definition'))
     dataset._load_from_dir_(os.path.join(cfg.dataset.path,'dataset'), verbose = True)
-    ids_train = problem.get_split('train')
+    ids_train = problem.get_split('train_1000')
     ids_test  = problem.get_split('test')
        
-    train_latents = np.load(cfg.dataset.train_latents_path)
-    test_latents = np.load(cfg.dataset.test_latents_path)
+    train_latents = np.load(cfg.dataset.train_latents_path)['train_modulations']
+    test_latents = np.load(cfg.dataset.test_latents_path)['val_modulations']
     # Create dataset instance
     # 3) Build the TRAIN-mode dataset (this computes all normalization stats)
-    train_ds = VKIFlowDataset(
+    train_ds = RotorFlowDataset(
     dataset, ids_train,
-    geom_latents = train_latents['train_modulations'],
+    geom_latents = train_latents,
     mode         = 'train')
     
     # 4) Randomly split off 50 samples for validation
     num_total = len(train_ds)
-    val_size  = 50
+    val_size  = 100
     rng = np.random.RandomState(42)
     all_idx = np.arange(num_total)
     rng.shuffle(all_idx)
@@ -87,9 +87,9 @@ def main(cfg: DictConfig) -> None:
     coef_norm = train_ds.coef_norm
 
     # 5) Build the TEST-mode dataset (reusing the same stats from full_train_ds)
-    test_dataset = VKIFlowDataset(
+    test_dataset = RotorFlowDataset(
         dataset, ids_test,
-        geom_latents = test_latents['val_modulations'],
+        geom_latents = test_latents,
         mode         = 'test',
         coef_norm    = coef_norm,
     )
@@ -312,8 +312,8 @@ def main(cfg: DictConfig) -> None:
         'scalars_pred': all_scalar_preds,
         'conds_raw':    all_cond_raw,
         # metadata
-        'cond_keys':    ['<latent_0>', '…', 'angle_in', 'angle_out'],
-        'scalar_keys':  ['Pr', 'Q', 'Tr', 'angle_out', 'eth_is', 'power'],
+        'cond_keys':    ['<latent_0>', '…', 'Omega', 'P'],
+        'scalar_keys':  ['Massflow', 'Compression_ratio', 'Efficiency'],
     }
 
     save_path = os.path.join(results_directory, f"{run_name}_predictions.pt")
@@ -355,15 +355,15 @@ def main(cfg: DictConfig) -> None:
         'scalars_pred': all_scalar_preds,
         'conds_raw':    all_cond_raw,
         # metadata
-        'cond_keys':    ['<latent_0>', '…', 'angle_in', 'angle_out'],
-        'scalar_keys':  ['Pr', 'Q', 'Tr', 'angle_out', 'eth_is', 'power'],
+        'cond_keys':    ['<latent_0>', '…', 'Omega', 'P'],
+        'scalar_keys':  ['Massflow', 'Compression_ratio', 'Efficiency'],
     }
 
     save_path = os.path.join(results_directory, f"{run_name}_val_predictions.pt")
     torch.save(results_val, save_path)
     print(f"Saved val predictions to {save_path}")
     return
-    return
+  
 
 
 if __name__ == "__main__":

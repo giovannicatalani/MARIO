@@ -1,16 +1,17 @@
 # config_sdf.yaml
-output_dir: /home/dmsm/gi.catalani/Projects/mario_challenge/VKILS59_task
+output_dir: /home/dmsm/gi.catalani/Projects/rotor37/
 
 wandb:
-  project: vki_sdf
+  project: rotor37_sdf
 
 dataset:
-  path: /scratch/dmsm/gi.catalani/VKILS59/
-  task: vkisdf
+  train_path: /scratch/dmsm/gi.catalani/Rotor37/pyoche_data/Rotor37_sdf_train.pch/
+  test_path:  /scratch/dmsm/gi.catalani/Rotor37/pyoche_data/Rotor37_sdf_test.pch/
+  task: 2dprofilesdf
 
 optim:
   batch_size: 4
-  epochs: 5000
+  epochs: 1000
   inner_steps: 3
   lr_inr: 1e-4
   lr_code: 0.01
@@ -21,9 +22,9 @@ inr:
   model_type: fourier_features
   target_field: implicit_distance
   task: full
-  input_dim: 2
+  input_dim: 3
   output_dim: 1
-  latent_dim: 16
+  latent_dim: 32
   depth: 5
   hidden_dim: 256
   activation: relu
