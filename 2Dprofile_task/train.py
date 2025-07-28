@@ -15,9 +15,8 @@ from omegaconf import DictConfig, OmegaConf
 from src.load_models import create_inr_instance,load_inr
 from torch_geometric.loader import DataLoader
 import wandb
-from plaid.containers.dataset import Dataset
-from plaid.problem_definition import ProblemDefinition
-from dataset import VKIFlowDataset, subsample_dataset
+import pyoche as pch
+from dataset import profileFlowDataset, subsample_dataset
 from src.utils_training import training_step
 from torch.utils.data import Subset
 
@@ -25,7 +24,8 @@ from torch.utils.data import Subset
 @hydra.main(config_path="", config_name="config_out.yaml")
 def main(cfg: DictConfig) -> None:
     # Initialize wandb
-    wandb.init(project='vki_blade', config=OmegaConf.to_container(cfg, resolve=True))
+    os.environ["WANDB__SERVICE_WAIT"] = "300"
+    wandb.init(project='2dprofile_sdf', config=OmegaConf.to_container(cfg, resolve=True))
     wandb.config.update({
         "batch_size": cfg.optim.batch_size,
         "lr_inr": cfg.optim.lr_inr,
@@ -52,27 +52,20 @@ def main(cfg: DictConfig) -> None:
     latent_cond = True
     
     
-    # —── Data loading
-    dataset = Dataset()
-    problem = ProblemDefinition()
-
-    problem._load_from_dir_(os.path.join(cfg.dataset.path,'problem_definition'))
-    dataset._load_from_dir_(os.path.join(cfg.dataset.path,'dataset'), verbose = True)
-    ids_train = problem.get_split('train')
-    ids_test  = problem.get_split('test')
-       
+    train_raw = pch.MlDataset.from_folder(cfg.dataset.train_path)
+    test_raw  = pch.MlDataset.from_folder(cfg.dataset.test_path)     
     train_latents = np.load(cfg.dataset.train_latents_path)
     test_latents = np.load(cfg.dataset.test_latents_path)
     # Create dataset instance
     # 3) Build the TRAIN-mode dataset (this computes all normalization stats)
-    train_ds = VKIFlowDataset(
-    dataset, ids_train,
-    geom_latents = train_latents['train_modulations'],
-    mode         = 'train')
-    
+    train_ds = profileFlowDataset(
+        ml_dataset   = train_raw,
+        geom_latents = train_latents['train_modulations'],
+        mode         = 'train',
+    )
     # 4) Randomly split off 50 samples for validation
     num_total = len(train_ds)
-    val_size  = 50
+    val_size  = 30
     rng = np.random.RandomState(42)
     all_idx = np.arange(num_total)
     rng.shuffle(all_idx)
@@ -87,8 +80,8 @@ def main(cfg: DictConfig) -> None:
     coef_norm = train_ds.coef_norm
 
     # 5) Build the TEST-mode dataset (reusing the same stats from full_train_ds)
-    test_dataset = VKIFlowDataset(
-        dataset, ids_test,
+    test_dataset = profileFlowDataset(
+        ml_dataset   = test_raw,
         geom_latents = test_latents['val_modulations'],
         mode         = 'test',
         coef_norm    = coef_norm,
@@ -157,9 +150,7 @@ def main(cfg: DictConfig) -> None:
         fit_train_mse_in = 0
         fit_test_mse_in = 0
         fit_field  = 0.0
-        fit_scalar = 0.0
         fit_test_field = 0.0
-        fit_test_scalar = 0.0
         test_loss_in  = 1
         # Initialize lists for loss history
         
@@ -191,20 +182,16 @@ def main(cfg: DictConfig) -> None:
             optimizer_in.step()
             loss = outputs["loss"].cpu().detach()
             field_loss = outputs["field_loss"].cpu().detach()
-            scalar_loss = outputs["scalar_loss"].cpu().detach()
             fit_train_mse_in += loss.item() * n_samples
             fit_field += field_loss.item() * n_samples
-            fit_scalar += scalar_loss.item() * n_samples
-            
-            
-            
+
+        
         train_loss_in = fit_train_mse_in / (ntrain)
         train_loss_field = fit_field / (ntrain)
-        train_loss_scalar = fit_scalar / (ntrain)
-        train_loss_history.append({'epoch': step, 'loss': train_loss_in, 'field_loss': train_loss_field, 'scalar_loss': train_loss_scalar})
+        train_loss_history.append({'epoch': step, 'loss': train_loss_in, 'field_loss': train_loss_field})
         # Inside training loop
-        wandb.log({"train_loss": train_loss_in, "epoch": step, "train_field_loss": train_loss_field, "train_scalar_loss": train_loss_scalar})
-        print('Train Loss', train_loss_in, 'Field Loss', train_loss_field, 'Scalar Loss', train_loss_scalar)
+        wandb.log({"train_loss": train_loss_in, "epoch": step, "train_field_loss": train_loss_field})
+        print('Train Loss', train_loss_in, 'Field Loss', train_loss_field)
        
 
         if use_pred_loss:
@@ -225,20 +212,18 @@ def main(cfg: DictConfig) -> None:
                 loss = outputs["loss"].cpu().detach()
                 fit_test_mse_in += loss.item() * n_samples
                 field_test_loss = outputs["field_loss"].cpu().detach()
-                scalar_test_loss = outputs["scalar_loss"].cpu().detach()
                 fit_train_mse_in += loss.item() * n_samples
                 fit_test_field += field_test_loss.item() * n_samples
-                fit_test_scalar += scalar_test_loss.item() * n_samples
               
             test_loss_in = fit_test_mse_in / (ntest)
             test_loss_field = fit_test_field / (ntest)
-            test_loss_scalar = fit_test_scalar / (ntest)
+
             
             scheduler.step(test_loss_in)
             
-            test_loss_history.append({'epoch': step, 'loss': test_loss_in, 'field_loss': test_loss_field, 'scalar_loss': test_loss_scalar})
-            wandb.log({"val_loss": test_loss_in, "epoch": step, "val_field_loss": test_loss_field, "val_scalar_loss": test_loss_scalar})
-            print('Test Loss', test_loss_in, 'Field Loss', test_loss_field, 'Scalar Loss', test_loss_scalar)
+            test_loss_history.append({'epoch': step, 'loss': test_loss_in, 'field_loss': test_loss_field})
+            wandb.log({"val_loss": test_loss_in, "epoch": step, "val_field_loss": test_loss_field})
+            print('Test Loss', test_loss_in, 'Field Loss', test_loss_field)
 
             plt.figure()
             plt.plot([p['epoch'] for p in train_loss_history], [p['loss'] for p in train_loss_history], label='Train Loss')
@@ -269,14 +254,13 @@ def main(cfg: DictConfig) -> None:
         # —————————— TEST‐TIME INFERENCE & COLLECTION ——————————
     # Prepare containers
     all_field_preds   = []
-    all_scalar_preds  = []
-    all_cond_raw      = []
-
     # Get normalization stats for inversion
-    cond_mean = coef_norm['cond']['mean']
-    cond_std  = coef_norm['cond']['std']
     out_mean  = coef_norm['output']['mean']
     out_std   = coef_norm['output']['std']
+    # Convert dictionaries to arrays ensuring the correct order of output fields
+    output_fields = ['Mach', 'Pressure', 'Velocity-x', 'Velocity-y']  # Same order as in the dataset class
+    out_mean_array = np.array([out_mean[field] for field in output_fields])
+    out_std_array = np.array([out_std[field] for field in output_fields])
 
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
     with torch.no_grad():
@@ -287,82 +271,21 @@ def main(cfg: DictConfig) -> None:
                 graph.input, 
                 graph.cond[graph.batch]
             )                              # (N, 1), normalized
-            field_n = field_n.cpu()
+            field_n = field_n.cpu().numpy()  # Convert to NumPy array
             # invert normalization: (x * std + mean)
-            # out_mean/out_std are arrays of length=2, but your output_dim=1,
-            # so we take the first element of each
-            field_unnorm = field_n * out_std + out_mean
-            all_field_preds.append(field_unnorm.squeeze(-1).numpy())
+            field_unnorm = field_n * out_std_array + out_mean_array
+            all_field_preds.append(field_unnorm)
 
-            # 2) Predict scalars (and unnormalize)
-            scal_n = inr_model.predict_scalars(graph.cond)  # (1, 6)
-            scal_n = scal_n.cpu().squeeze(0)
-            scal_unnorm = scal_n * coef_norm['scalars']['std'] + coef_norm['scalars']['mean']
-            all_scalar_preds.append(scal_unnorm.numpy())
-
-            # 3) Recover raw conditions
-            cond_n = graph.cond.cpu().squeeze(0).numpy()     # (cond_dim,)
-            cond_unnorm = cond_n * cond_std + cond_mean     # invert standardization
-            all_cond_raw.append(cond_unnorm)
 
     # —————————— SAVE EVERYTHING ——————————
     results = {
         # lists of NumPy arrays, one entry per test sample
         'fields_pred':  all_field_preds,  
-        'scalars_pred': all_scalar_preds,
-        'conds_raw':    all_cond_raw,
-        # metadata
-        'cond_keys':    ['<latent_0>', '…', 'angle_in', 'angle_out'],
-        'scalar_keys':  ['Pr', 'Q', 'Tr', 'angle_out', 'eth_is', 'power'],
     }
 
     save_path = os.path.join(results_directory, f"{run_name}_predictions.pt")
     torch.save(results, save_path)
     print(f"Saved predictions to {save_path}")
-    
-
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
-    with torch.no_grad():
-        for graph in val_loader:
-            graph = graph.to(device)
-            # 1) Predict fields (and unnormalize)
-            field_n = inr_model.modulated_forward(
-                graph.input, 
-                graph.cond[graph.batch]
-            )                              # (N, 1), normalized
-            field_n = field_n.cpu()
-            # invert normalization: (x * std + mean)
-            # out_mean/out_std are arrays of length=2, but your output_dim=1,
-            # so we take the first element of each
-            field_unnorm = field_n * out_std + out_mean
-            all_field_preds.append(field_unnorm.squeeze(-1).numpy())
-
-            # 2) Predict scalars (and unnormalize)
-            scal_n = inr_model.predict_scalars(graph.cond)  # (1, 6)
-            scal_n = scal_n.cpu().squeeze(0)
-            scal_unnorm = scal_n * coef_norm['scalars']['std'] + coef_norm['scalars']['mean']
-            all_scalar_preds.append(scal_unnorm.numpy())
-
-            # 3) Recover raw conditions
-            cond_n = graph.cond.cpu().squeeze(0).numpy()     # (cond_dim,)
-            cond_unnorm = cond_n * cond_std + cond_mean     # invert standardization
-            all_cond_raw.append(cond_unnorm)
-
-    # —————————— SAVE EVERYTHING ——————————
-    results_val = {
-        # lists of NumPy arrays, one entry per test sample
-        'fields_pred':  all_field_preds,  
-        'scalars_pred': all_scalar_preds,
-        'conds_raw':    all_cond_raw,
-        # metadata
-        'cond_keys':    ['<latent_0>', '…', 'angle_in', 'angle_out'],
-        'scalar_keys':  ['Pr', 'Q', 'Tr', 'angle_out', 'eth_is', 'power'],
-    }
-
-    save_path = os.path.join(results_directory, f"{run_name}_val_predictions.pt")
-    torch.save(results_val, save_path)
-    print(f"Saved val predictions to {save_path}")
-    return
     return
 
 

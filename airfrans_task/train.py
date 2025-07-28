@@ -12,12 +12,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
-from utils.load_models import create_inr_instance,load_inr
+from src.load_models import create_inr_instance,load_inr
 from torch_geometric.loader import DataLoader
 import wandb
 import pyoche as pch
-from utils.dataset import AirfransFlowDataset, subsample_dataset
-from utils.utils_training import training_step
+from dataset import AirfransFlowDataset, subsample_dataset
+from src.utils_training import training_step
 from torch.utils.data import Subset
 import airfrans as af
 
@@ -50,6 +50,7 @@ def main(cfg: DictConfig) -> None:
     in_dim = cfg.inr.in_dim
     out_dim = cfg.inr.out_dim
     latent_cond = True
+    predict_scalars = True if cfg.inr.out_scalar_dim > 0 else False
     
     
     train_data, train_names = af.dataset.load(root=cfg.dataset.root_path, task=cfg.dataset.task, train=True)
@@ -174,6 +175,7 @@ def main(cfg: DictConfig) -> None:
                 inr_in,
                 graph,
                 latent_cond=latent_cond,
+                predict_scalars=predict_scalars,
                 return_reconstructions=False,
             )
 
@@ -207,6 +209,7 @@ def main(cfg: DictConfig) -> None:
                     inr_in,
                     graph,
                     latent_cond=latent_cond,
+                    predict_scalars=predict_scalars,
                     return_reconstructions=False,
                 )
                 loss = outputs["loss"].cpu().detach()

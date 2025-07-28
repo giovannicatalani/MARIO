@@ -15,8 +15,7 @@ from torch_geometric.loader import DataLoader
 # allow imports of your project
 import sys
 sys.path.append(str(Path(__file__).parents[1]))
-import airfrans as af
-from dataset import SDFDataset, subsample_dataset
+from dataset import profileSDFDataset, subsample_dataset
 from src.utils_training import graph_outer_step
 from src.load_models import create_inr_instance, load_inr
 
@@ -43,12 +42,12 @@ def main(cfg: DictConfig) -> None:
         yaml.dump(OmegaConf.to_container(cfg, resolve=True), f)
 
     # —── Data loading
-    train_data, train_names = af.dataset.load(root=cfg.dataset.root_path, task=cfg.dataset.task, train=True)
-    test_data, test_names = af.dataset.load(root=cfg.dataset.root_path, task=cfg.dataset.task, train=False)
-    train_dataset = SDFDataset(train_data, train_names, is_train=True)
-    test_dataset = SDFDataset(test_data, test_names, is_train=False, coef_norm=train_dataset.coef_norm)
-    train_ds = train_dataset.processed_dataset
-    test_ds = test_dataset.processed_dataset
+    train_raw = pch.MlDataset.from_folder(cfg.dataset.train_path)
+    test_raw  = pch.MlDataset.from_folder(cfg.dataset.test_path)
+
+    train_ds = profileSDFDataset(train_raw, is_train=True)
+    test_ds  = profileSDFDataset(test_raw, is_train=False, coef_norm=train_ds.coef_norm)
+
     n_train = len(train_ds)
     n_test  = len(test_ds)
 

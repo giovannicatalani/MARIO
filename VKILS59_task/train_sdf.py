@@ -17,9 +17,9 @@ from torch_geometric.loader import DataLoader
 import sys
 sys.path.append(str(Path(__file__).parents[1]))
 
-from utils.dataset import vkiSDFDataset, subsample_dataset
-from utils.utils_training import graph_outer_step
-from utils.load_models import create_inr_instance, load_inr
+from dataset import vkiSDFDataset, subsample_dataset
+from src.utils_training import graph_outer_step
+from src.load_models import create_inr_instance, load_inr
 
 
 @hydra.main(config_path=".", config_name="config_sdf.yaml")
