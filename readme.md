@@ -54,7 +54,7 @@ pip install pyplaid
 ```
 PLAID is alo available on conda-forge:
 ```bash
-conda install plaid
+conda install -c conda-forge plaid
 
 ```
 More documentation is available on the [plaid](https://github.com/PLAID-lib/plaid) github repository .
