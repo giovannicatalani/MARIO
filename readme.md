@@ -49,7 +49,12 @@ pip install airfrans
 For the PLAID benchmarks the Plaid package is required. For ease of handling of additional fields (signed distance function) the library pyoche is used for certain experiemnts. Both libraries are available via pip.
 ```bash
 pip install pyoche
-pip install plaid
+pip install pyplaid
+
+```
+PLAID is alo available on conda-forge:
+```bash
+conda install plaid
 
 ```
 More documentation is available on the [plaid](https://github.com/PLAID-lib/plaid) github repository .
