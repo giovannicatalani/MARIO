@@ -52,7 +52,7 @@ pip install pyoche
 pip install pyplaid
 
 ```
-PLAID is alo available on conda-forge:
+PLAID is also available on conda-forge:
 ```bash
 conda install -c conda-forge plaid
 
