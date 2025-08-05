@@ -70,11 +70,11 @@ def graph_inner_loop(
 
 
 
-    #print(f"INIIER_LOOP_NUM_EPOCH = {num_epoch}")
+    
     fitted_modulations = modulations
 
 
-    #Loss_inner_outer_loop = []
+   
 
     for step in range(inner_steps):
         fitted_modulations, loss = graph_inner_loop_step(
@@ -86,35 +86,6 @@ def graph_inner_loop(
             inner_lr,
             is_train,
         )
-
-
-        #Loss_inner_outer_loop.append(loss.detach().numpy())
-
-    # if (num_epoch % 50 == 0) and ((num_batch == 1 or num_batch == 16)) :
-
-    #     plt.figure(figsize=(6, 4))
-
-    #     plt.plot(list(range(inner_steps)), Loss_inner_outer_loop)
-    #     if num_batch == 1 :
-    #         plt.title("Loss Batch num : 1")
-    #     if num_batch == 16 :
-    #         plt.title("Loss Batch num : 16")
-
-    #     plt.xlabel("inner_step")
-    #     plt.ylabel("Batch Loss")
-
-    #     plt.savefig(f"/gpfs/data/ssa/users/dt955021/Hyper_Elastic_2D_benchmark/Loss_inner_loop/Loss_{num_epoch}_{num_batch}.png")
-
-
-
-
-
-
-
-
-
-
-
 
 
     return fitted_modulations
@@ -181,7 +152,7 @@ def graph_outer_step(
     modulations = torch.zeros_like(graph.modulations).requires_grad_()
     coords = graph.input
     features = graph.output
-    #print(f"NUM_EPOCHHHH = {num_epoch}")
+
     # Run inner loop
     modulations = graph_inner_loop(
         func_rep,
@@ -197,7 +168,7 @@ def graph_outer_step(
     )
 
     if detach_modulations:
-        modulations = modulations.detach()  # 1er ordre
+        modulations = modulations.detach()  
 
     loss = 0
     batch_size = modulations.shape[0]

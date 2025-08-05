@@ -20,11 +20,7 @@ def pre_process_sdf():
 
     ids_train = probleme_def.get_split('train')
     ids_test  = probleme_def.get_split('test')
-    print("SPLIT SPLIT")
-    print(ids_train)
-    print(ids_test)
-    print(len(ids_train))
-    print(len(ids_test))
+  
 
 
 

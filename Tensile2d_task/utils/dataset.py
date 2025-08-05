@@ -4,25 +4,7 @@ from torch_geometric.data import Dataset, Data
 
 class Tensil_2D_flowDataset(Dataset):
     """
-    PyG Dataset for VKI flow SDF data loaded via pyoche MlDataset.
 
-    Modes:
-      - 'train': include inputs, pos, outputs, cond, output_scalars; computes normals
-      - 'val':   include inputs, pos, outputs, cond, output_scalars; uses provided coef_norm
-      - 'test':  include inputs, pos, cond only; uses provided coef_norm
-
-    Each sample keys:
-      - 'mesh/points': (2, N)
-      - 'mesh/sdf':    (1, N)
-      - 'mesh/mach':   (1, N)
-      - 'mesh/nut':    (1, N)
-      - scalars/... fields
-
-    Normalizations:
-      inputs:   [x,y] & sdf -> min-max to [-1,1]
-      outputs:  [mach,nut] -> standard
-      cond:     geom_latents+[angle_in,mach_out] -> standard
-      scalars:  [Pr,Q,Tr,angle_out,eth_is,power] -> standard
     """
     def __init__(
         self,
@@ -189,18 +171,7 @@ class Tensil_2D_flowDataset(Dataset):
 
 class Tensil_2D_SDF(Dataset):
     """
-    PyG Dataset for VKI SDF data loaded via pyoche MlDataset.
 
-    Each sample in ml_dataset should support indexing and provide:
-      - item['mesh/points']: numpy array of shape (M, 3?) or (M, 2) for coordinates
-      - item['mesh/sdf']: numpy array of shape (M,) of SDF values
-
-    Args:
-        ml_dataset: pyoche.MlDataset instance (or similar) with ['mesh/points'], ['mesh/sdf']
-        is_train: whether to compute normalization from this dataset
-        coef_norm: precomputed normalization dict (required if is_train=False)
-        num_points: subsample each sample to this number of points
-        transform, pre_transform: for PyG compatibility
     """
     def __init__(self, Tensil_2d, is_train=True, coef_norm=None, num_points=None,
                  transform=None, pre_transform=None):

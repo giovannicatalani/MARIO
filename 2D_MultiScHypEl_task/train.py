@@ -15,7 +15,6 @@ from omegaconf import DictConfig, OmegaConf
 from utils.load_models import create_inr_instance,load_inr
 from torch_geometric.loader import DataLoader
 
-import pyoche as pch
 from utils.dataset import Hyper_Elastic_2D_FlowDataset, subsample_dataset
 from utils.utils_training import training_step
 from torch.utils.data import Subset
@@ -160,7 +159,7 @@ def main(cfg: DictConfig) -> None:
         train_loader = DataLoader(train_subsample_dataset, batch_size=batch_size, shuffle=True)
 
         print('Num points for training', len(train_subsample_dataset[0].input))
-        compteur = 0
+       
         for substep,graph in enumerate(train_loader):
 
             n_samples = len(graph)
@@ -168,8 +167,7 @@ def main(cfg: DictConfig) -> None:
             graph = graph.cuda() if torch.cuda.is_available() else graph
 
 
-            compteur = compteur + 1
-            print(compteur)
+        
             outputs = training_step(
                 inr_in,
                 graph,

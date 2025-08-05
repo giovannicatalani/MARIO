@@ -33,7 +33,7 @@ python train_sdf.py \
 
 ### 2. Train Flow Model
 
-Edit `config_out.yaml` to set modulations path.
+Edit `config_out.yaml` to set modulations path and output dir
 
 Then run:
 
@@ -61,19 +61,14 @@ python train.py optim.lr_flow=5e-4
 
 ## Dependencies
 
-- `datasets`
-- `einops`
-- `hydra-core`
-- `ipykernel`
+
+- `einops` = 0.8.1
+- `hydra-core`= 1.3.2
 - `muscat`= 2.4.1
 - `omegaconf`
 - `plaid`= 0.1.6 
-- `pytorch-lightning`
-- `torch`
-- `torchaudio`
-- `torchmetrics`
-- `torchvision`
-- `torch-geometric`
+- `torch` = 2.7.1
+- `torch-geometric` = 2.6.1
 
 
 

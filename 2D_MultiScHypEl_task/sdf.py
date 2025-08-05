@@ -18,23 +18,6 @@ from Muscat.IO import XdmfWriter as XW
 import os
 import numpy as np
 
-#INPUT = '/data/ssa/units/stn/mads/flex/datasets/C1/2D_profile/large_dataset/original/plaid'
-
-#dataset_ = Dataset()
-#problem = ProblemDefinition()
-
-
-#problem._load_from_dir_(os.path.join(INPUT,'problem_definition'))
-# print("problem =", problem)
-
-
-#dataset_._load_from_dir_(os.path.join(INPUT,'dataset'),ids=[0],verbose = True)
-
-
-#sample=dataset_[0]
-#print(sample.get_field_names())
-#name_field=sample.get_field_names()
-#print(sample.get_field(name_field[-2]))
 
 
 
@@ -64,31 +47,11 @@ def project_fields(mesh, output_nodes):
 def add_sdf(dataset):
 
     for sample in dataset:
-
-
         tree = sample.get_mesh()
         mesh = CGNSToMesh(tree)
-
         sdf = project_fields(mesh, mesh.nodes)
-
-
-
         sample.add_field('sdf',sdf,base_name="Base_2_2")
 
-
-
-
-
-
-
-
-
-
-
-# XW.WriteMeshToXdmf("2D_profile.xdmf",
-#             mesh,
-#             PointFields = [sample.get_field(fn) for fn in sample.get_field_names()]+[sdf],
-#             PointFieldsNames = sample.get_field_names()+['sdf'])
 
 
 

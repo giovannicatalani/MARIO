@@ -18,23 +18,6 @@ from Muscat.IO import XdmfWriter as XW
 import os
 import numpy as np
 
-#INPUT = '/data/ssa/units/stn/mads/flex/datasets/C1/2D_profile/large_dataset/original/plaid'
-
-#dataset_ = Dataset()
-#problem = ProblemDefinition()
-
-
-#problem._load_from_dir_(os.path.join(INPUT,'problem_definition'))
-# print("problem =", problem)
-
-
-#dataset_._load_from_dir_(os.path.join(INPUT,'dataset'),ids=[0],verbose = True)
-
-
-#sample=dataset_[0]
-#print(sample.get_field_names())
-#name_field=sample.get_field_names()
-#print(sample.get_field(name_field[-2]))
 
 
 

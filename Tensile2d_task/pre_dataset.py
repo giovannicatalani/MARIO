@@ -1,12 +1,7 @@
 import numpy as np
 import torch, hydra
-import airfrans as af
-
 from hydra.utils import instantiate, get_class
-
 from base_sample_to_geometric import base_sample_to_geometric
-
-
 from plaid.containers.dataset import Dataset
 from plaid.containers.sample import Sample
 from plaid.utils.split import split_dataset
@@ -16,27 +11,16 @@ from functools import partial
 from omegaconf import DictConfig
 from hydra.utils import instantiate
 
-
 from tqdm import tqdm
 import torch
 from pathlib import Path
-
 from torch_geometric.loader import DataLoader
-
-
-
 import matplotlib.pyplot as plt
 import os
-
 from sdf import add_sdf
-
-import numpy as np
-import torch, hydra
 from Muscat.Bridges.CGNSBridge import MeshToCGNS
 from Muscat.Containers import MeshCreationTools as MCT
 from plaid.bridges import huggingface_bridge
-from datasets import load_from_disk
-from loaderA import elasto_plasto_dynamics_sample_to_geometric
 from datasets import load_dataset
 
 
@@ -69,7 +53,7 @@ def pre_process_dataset():
     options = {
         'shuffle': False,
         'split_sizes': {
-            'train': 500,     # 500 exemples de train pour 2D_Tensile
+            'train': 500,    
 
         },
     }
@@ -78,11 +62,7 @@ def pre_process_dataset():
 
     ids_train = probleme_def.get_split('train_500')
     ids_test  = probleme_def.get_split('test')
-    print("SPLIT SPLIT")
-    print(ids_train)
-    print(ids_test)
-    print(len(ids_train))
-    print(len(ids_test))
+
 
 
 

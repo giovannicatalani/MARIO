@@ -164,7 +164,7 @@ class ModulatedFourierFeatures(nn.Module):
     def modulated_forward(self, x, z):
         x_shape = x.shape[:-1]
         x = x.view(x.shape[0], -1, x.shape[-1])
-        #print('x', x.shape, z.shape)
+       
         features = self.latent_to_modulation(z)
         position = self.embedding(x)
         if self.frequency_embedding == "gaussian" and self.include_input:

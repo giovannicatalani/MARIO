@@ -1,4 +1,4 @@
-# 2D_Multiscale_Hyperelasticity Task
+# 2D_MultiScHypEl_task Task
 
 This folder contains the training pipeline for the **2D_Multiscale_Hyperelasticity**  dataset using the MARIO architecture.
 

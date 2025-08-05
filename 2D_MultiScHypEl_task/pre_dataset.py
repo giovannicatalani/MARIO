@@ -72,9 +72,7 @@ def pre_process_dataset():
 
     split = split_dataset(Hyper_Elastic_2D, options)
 
-    print("SPLIT SPLIT")
-    print(split['test'])
-    print(split['other'])
+ 
 
 
 

@@ -206,18 +206,7 @@ class ElastoPlasticFlowDataset(Dataset):
 
 class ElastoPlasticSDFDataset(Dataset):
     """
-    PyG Dataset for VKI SDF data loaded via pyoche MlDataset.
-
-    Each sample in ml_dataset should support indexing and provide:
-      - item['mesh/points']: numpy array of shape (M, 3?) or (M, 2) for coordinates
-      - item['mesh/sdf']: numpy array of shape (M,) of SDF values
-
-    Args:
-        ml_dataset: pyoche.MlDataset instance (or similar) with ['mesh/points'], ['mesh/sdf']
-        is_train: whether to compute normalization from this dataset
-        coef_norm: precomputed normalization dict (required if is_train=False)
-        num_points: subsample each sample to this number of points
-        transform, pre_transform: for PyG compatibility
+  
     """
     def __init__(self, ElastoPlastic_dataset, is_train=True, coef_norm=None, num_points=None,
                  transform=None, pre_transform=None):

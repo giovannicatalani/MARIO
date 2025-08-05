@@ -7,7 +7,7 @@ import torch.nn as nn
 from pathlib import Path
 from tqdm import tqdm
 
-import pyoche as pch
+i
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.loader import DataLoader
@@ -66,16 +66,7 @@ def main(cfg: DictConfig) -> None:
         device     = device
     )
     inr_model.to(device)
-    print(torch.__version__)
-    print(torch.version.cuda)
-    print(device)
-    print(f"Cuda Available = {torch.cuda.is_available()}")
-    print(f"Nombre de GPU = {torch.cuda.device_count()}")
-    # Utiliser DataParallel pour paralléliser le modèle sur plusieurs GPU
-    # if torch.cuda.device_count() > 1:
-    #     print(f"Using {torch.cuda.device_count()} GPUs!")
-    #     inr_model = nn.DataParallel(inr_model)
-
+  
 
 
 
@@ -111,14 +102,13 @@ def main(cfg: DictConfig) -> None:
             batch_size=cfg.optim.batch_size,
             shuffle=True
         )
-        compteur = 0
+    
         for batch in train_loader:
             batch = batch.to(device)
             batch.modulations = torch.zeros(
                 cfg.optim.batch_size, cfg.inr.latent_dim, device=device
             )
-            compteur = compteur + 1
-            print(compteur)
+         
             out = graph_outer_step(
                 inr_model, batch,
                 cfg.optim.inner_steps,

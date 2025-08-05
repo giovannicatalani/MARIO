@@ -1,11 +1,10 @@
-# VKI Blade Task
+# Tensile2D Task
 
-This folder contains the training pipeline for the **VKILS59** blade dataset using the MARIO architecture.
+This folder contains the training pipeline for the **Tensile2d**  dataset using the MARIO architecture.
 
 ---
 
-![MARIO VKI](figures/mario_vki_overview-1.png)
-![MARIO Encoding](figures/gemetry_encoding_mario_vki-1.png)
+
 
 
 ## Workflow Overview
@@ -13,13 +12,14 @@ This folder contains the training pipeline for the **VKILS59** blade dataset usi
 1. **SDF Encoder Training** (`train_sdf.py`)
 
    * Configured via `config_sdf.yaml`
-   * Produces latent **modulations** for each blade geometry.
+   * Produces latent **modulations** for each geometry.
    * Modulations are saved under the `trainings/training_sdf_<timestamp>/modulations/` directory.
 
-2. **Flow Model Training** (`train_flow.py`)
+2. **Flow Model Training** (`train.py`)
 
    * Uses the precomputed SDF latents as geometric conditioning.
    * Specify the path to the saved `.npz` modulations in `config_out.yaml` under `dataset.train_latents_path` and  `dataset.test_latents_path`.
+   
 
 ---
 
@@ -28,13 +28,14 @@ This folder contains the training pipeline for the **VKILS59** blade dataset usi
 ### 1. Train SDF Encoder
 
 ```bash
-cd VKILS59_task
+cd Tensile2d_task
 python train_sdf.py \
 ```
 
 ### 2. Train Flow Model
 
-Edit `config_out.yaml` to set modulations path.
+
+Edit `config_out.yaml` to set modulations path, and the output dir
 
 Then run:
 
@@ -57,7 +58,7 @@ You can override any Hydra parameter on the command line. For example:
 python train_sdf.py optim.batch_size=8 inr.latent_dim=32
 
 # Change learning rate for flow model
-python train_flow.py optim.lr_flow=5e-4
+python train.py optim.lr_flow=5e-4
 ```
 
 ## Dependencies

@@ -6,8 +6,6 @@ import torch
 import torch.nn as nn
 from pathlib import Path
 from tqdm import tqdm
-
-import pyoche as pch
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.loader import DataLoader
@@ -61,8 +59,7 @@ def main(cfg: DictConfig) -> None:
 
     n_train = len(train_ds)
     n_test  = len(test_ds)
-    print(f"n_train = {n_train}")
-    print(f"n_test = {n_test}")
+
 
 
     # —── Build INR model
@@ -102,10 +99,10 @@ def main(cfg: DictConfig) -> None:
             batch_size=cfg.optim.batch_size,
             shuffle=True
         )
-        compteur = 0
+ 
         for batch in train_loader:
-            compteur = compteur + 1
-            print(compteur)
+            
+      
             batch = batch.to(device)
             batch.modulations = torch.zeros(
                 cfg.optim.batch_size, cfg.inr.latent_dim, device=device

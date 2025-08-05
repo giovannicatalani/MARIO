@@ -22,7 +22,7 @@ inr:
   output_dim: 1
   latent_dim: 100
   depth: 5
-  hidden_dim: 256 # Dimension latente du reseau qui predit la sdf
+  hidden_dim: 256 
   activation: relu
   w0: null
   use_latent: true

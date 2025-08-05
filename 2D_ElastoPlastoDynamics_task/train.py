@@ -159,13 +159,12 @@ def main(cfg: DictConfig) -> None:
         train_loader = DataLoader(train_subsample_dataset, batch_size=batch_size, shuffle=True)
 
         print('Num points for training', len(train_subsample_dataset[0].input))
-        compteur = 0
+ 
 
 
 
         for substep,graph in enumerate(train_loader):
-            compteur = compteur + 1
-            print( compteur )
+          
             n_samples = len(graph)
             inr_in.train()
             graph = graph.cuda() if torch.cuda.is_available() else graph

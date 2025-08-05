@@ -7,7 +7,6 @@ import torch.nn as nn
 from pathlib import Path
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-import pyoche as pch
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.loader import DataLoader
@@ -44,15 +43,15 @@ def main(cfg: DictConfig) -> None:
 
     # —── Data loading
 
-    print("Pre process begin")
+    
     train_raw, test_raw = pre_process_sdf()
-    print("Pre process end")
+  
 
 
-    print("Dataset begin")
+   
     train_ds = ElastoPlasticSDFDataset(train_raw, is_train=True)
     test_ds  = ElastoPlasticSDFDataset(test_raw, is_train=False, coef_norm=train_ds.coef_norm)
-    print("Dataset end")
+   
     n_train = len(train_ds)
     n_test  = len(test_ds)
 
@@ -93,11 +92,10 @@ def main(cfg: DictConfig) -> None:
             batch_size=cfg.optim.batch_size,
             shuffle=True
         )
-        compteur = 0
+       
         for batch in train_loader:
 
-            compteur = compteur + 1
-            print(compteur)
+       
             batch = batch.to(device)
             batch.modulations = torch.zeros(
                 cfg.optim.batch_size, cfg.inr.latent_dim, device=device
