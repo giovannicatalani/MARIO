@@ -1,0 +1,47 @@
+# config_sdf.yaml
+output_dir: "to be filled"
+
+
+dataset:
+  task: hyper_elas
+
+optim:
+  batch_size: 4
+  epochs: 1000
+  inner_steps: 5
+  lr_inr: 1e-4
+  lr_code: 0.01
+  meta_lr_code: 5e-5
+  num_points: 1250
+
+inr:
+  model_type: fourier_features
+  target_field: implicit_distance
+  task: full
+  input_dim: 2
+  output_dim: 1
+  latent_dim: 100
+  depth: 5
+  hidden_dim: 256 # Dimension latente du reseau qui predit la sdf
+  activation: relu
+  w0: null
+  use_latent: true
+  modulate_scale: false
+  modulate_shift: true
+  hypernet_depth: 1
+  hypernet_width: 128
+  frequency_embedding: gaussian
+  include_input: true
+  scale: 0.5
+  num_frequencies: 32
+  max_frequencies: 8
+  base_frequency: 1.25
+  last_activation: null
+  loss_type: mse
+  add_cond_in: false
+  add_sdf_in: false
+  global_norm: false
+  is_input: true
+
+restart_training: false
+saved_model_path: null  # e.g. trainings/.../best.pt
