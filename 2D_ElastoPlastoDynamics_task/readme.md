@@ -61,26 +61,19 @@ python train.py optim.lr_flow=5e-4
 
 ## Dependencies
 
-   `basictools`
-   `datasets`
-   `einops`
-   `hydra-core`
-   `ipykernel`
-   `muscat`
-   `mathplotlib`
-   `numpy`
-   `omegaconf`
-   `pillow`
-   `plaid`
-   `scikit-learn`
-   `pytorch-lightning`
-   `torch`
-   `torchaudio`
-   `torchmetrics`
-   `torchvision`
-   `tqdm`
-   `yaml`
-   `torch-geometric`
+- `datasets`
+- `einops`
+- `hydra-core`
+- `ipykernel`
+- `muscat`= 2.4.1
+- `omegaconf`
+- `plaid`= 0.1.6 
+- `pytorch-lightning`
+- `torch`
+- `torchaudio`
+- `torchmetrics`
+- `torchvision`
+- `torch-geometric`
 
 
 
