@@ -1,0 +1,44 @@
+saved_model_path:
+restart_training: False
+output_reference_file : "to be filled"
+dataset:
+
+  train_latents_path: "to be filled"
+  test_latents_path: "to be filled"
+optim:
+  batch_size: 4
+  batch_size_val:
+  lr_inr : 1e-4
+  epochs : 2000
+  lr_mlp : 1e-4
+  weight_decay_mlp: 0
+  num_points: 1250
+
+inr:
+  model_type : "ms_fourier_features"
+  latent_dim : 103 #set this to dim latent geom + inflow condtions dim
+  in_dim : 3
+  out_dim : 7
+  out_scalar_dim : 1
+  depth : 6
+  hidden_dim : 256
+  w0 :
+  use_latent: True
+  modulate_scale: False
+  modulate_shift: True
+  hypernet_depth: 3
+  hypernet_width: 256
+  frequency_embedding: 'gaussian'
+  include_input: True
+  scale: [0.1,7.5,100000000]
+  num_frequencies: 64
+  max_frequencies: 8
+  base_frequency: 1.25
+  last_activation:
+  loss_type: "mse"
+  add_cond_in: False
+  add_sdf_in:
+  global_norm: False
+  conditionning_type: 'shift_modulation'   # 'attention' or 'shift_modulation'
+
+

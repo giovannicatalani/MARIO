@@ -1,0 +1,441 @@
+import numpy as np
+import torch
+from torch_geometric.data import Dataset, Data
+import random as random
+import matplotlib.pyplot as plt
+
+class Hyper_Elastic_2D_FlowDataset(Dataset):
+    """
+
+    """
+    def __init__(
+        self,
+        Hyper_elas,
+        geom_latents,
+        mode='train',
+        coef_norm=None,
+        num_points=None,
+        idx_list=None,
+        transform=None,
+        pre_transform=None
+    ):
+        super().__init__(None, transform, pre_transform)
+        self.Hyper_elas = Hyper_elas
+        self._raw_geom_latents = np.array(geom_latents)
+        total = len(Hyper_elas)
+        self.idx_list = list(range(total)) if idx_list is None else list(idx_list)
+        self.geom_latents = self._raw_geom_latents[self.idx_list]
+        self.mode = mode
+        self.num_points = num_points
+        # norms
+        if mode == 'train':
+            self.coef_norm = self.compute_norm_params()
+            self.data_list = self.process_dataset()
+        else:
+            if coef_norm is None:
+                raise ValueError("coef_norm required for non-train modes")
+            self.coef_norm = coef_norm
+            self.data_list = self.process_dataset()
+        # if mode == 'plot':
+
+
+
+
+
+    def compute_norm_params(self):
+        pos_all, sdf_all = [], []
+        u1_all, u2_all, P11_all, P12_all, P22_all, P21_all, psi_all = [], [], [], [], [], [], []
+        cond_all, scal_all = [], []
+        scalar_keys = ['effective_energy']
+
+
+        for idx in range(len(self.Hyper_elas)):
+
+            item = list(self.Hyper_elas.values())[idx]
+            pts = np.array(item.pos)
+            sdf = np.array(item.x[:,2])
+            pos_all.append(pts)
+            sdf_all.append(sdf)
+            if self.mode in ('train','val'):
+
+                u1_all.append(np.array(item['u1']))
+                u2_all.append(np.array(item['u2']))
+                P11_all.append(np.array(item['P11']))
+                P12_all.append(np.array(item['P12']))
+                P22_all.append(np.array(item['P22']))
+                P21_all.append(np.array(item['P21']))
+                psi_all.append(np.array(item['psi']))
+
+
+            angles = [float(item['C11']), float(item['C12']),  float(item['C22'])]
+            cond_all.append(np.concatenate([self.geom_latents[self.idx_list.index(idx)], angles]))
+            scal_all.append([float(item[k]) for k in scalar_keys])
+        pos_all = np.vstack(pos_all)
+        sdf_all = np.hstack(sdf_all)
+        pos_min = pos_all.min(axis=0)
+        pos_range = pos_all.max(axis=0) - pos_min
+        pos_range[pos_range==0] = 1.0
+        sdf_min = sdf_all.min()
+        sdf_range = sdf_all.max() - sdf_min or 1.0
+        out_mean = out_std = None
+        if self.mode in ('train','val'):
+            u1_all = np.hstack(u1_all)
+            u2_all  = np.hstack(u2_all)
+            P11_all = np.hstack(P11_all)
+            P12_all  = np.hstack(P12_all)
+            P22_all = np.hstack(P22_all)
+            P21_all  = np.hstack(P21_all)
+            psi_all = np.hstack(psi_all)
+
+
+
+
+
+
+
+            out_mean = np.array([u1_all.mean(), u2_all.mean(),  P11_all.mean(),  P12_all.mean(),  P22_all.mean(),  P21_all.mean(),  psi_all.mean()])
+            out_std  = np.array([u1_all.std(),  u2_all.std(),  P11_all.std(),  P12_all.std(),  P22_all.std(),  P21_all.std(),  psi_all.std()])
+
+
+
+
+
+
+            out_std[out_std==0] = 1.0
+        cond_all = np.vstack(cond_all)
+        cond_mean = cond_all.mean(axis=0)
+        cond_std  = cond_all.std(axis=0)
+        cond_std[cond_std==0] = 1.0
+        scal_all = np.vstack(scal_all)
+        scal_mean = scal_all.mean(axis=0)
+        scal_std  = scal_all.std(axis=0)
+        scal_std[scal_std==0] = 1.0
+        return {
+            'pos':    {'min': pos_min, 'range': pos_range},
+            'sdf':    {'min': sdf_min, 'range': sdf_range},
+            'output': {'mean': out_mean, 'std': out_std},
+            'cond':   {'mean': cond_mean,'std': cond_std},
+            'scalars':{'mean': scal_mean,'std': scal_std}
+        }
+
+    def process_dataset(self):
+        data_list = []
+        c = self.coef_norm
+        skeys = ['effective_energy']
+
+
+
+
+
+
+        for idx in range(len(self.Hyper_elas)):
+
+            item = list(self.Hyper_elas.values())[idx]
+            pts = np.array(item.pos)
+            sdf = np.array(item.x[:,2])
+
+
+            if self.num_points and pts.shape[0] > self.num_points:
+                sel = np.random.choice(pts.shape[0], self.num_points, replace=False)
+                pts, sdf = pts[sel], sdf[sel]
+            pmin, pr = c['pos']['min'], c['pos']['range']
+            smin, sr = c['sdf']['min'], c['sdf']['range']
+            pts_n = 2*(pts - pmin)/pr - 1
+            sdf_n = 2*((sdf - smin)/sr) - 1
+            # per-node features
+            input_feats = torch.tensor(np.concatenate([pts_n, sdf_n[:,None]],1), dtype=torch.float)
+            node_kwargs = {
+                'input': input_feats,
+                'pos':   torch.tensor(pts_n, dtype=torch.float)  # for batching
+            }
+            if self.mode in ('train','val'):
+
+
+
+
+                u1 = np.array(item['u1'])
+                u2 = np.array(item['u2'])
+                P11 = np.array(item['P11'])
+                P12 = np.array(item['P12'])
+                P22 = np.array(item['P22'])
+                P21 = np.array(item['P21'])
+                psi = np.array(item['psi'])
+
+
+
+
+
+                om, os = c['output']['mean'], c['output']['std']
+                out_np = np.stack([(u1-om[0])/os[0], (u2-om[1])/os[1], (P11-om[2])/os[2], (P12-om[3])/os[3], (P22-om[4])/os[4], (P21-om[5])/os[5], (psi-om[6])/os[6]],1)
+
+                node_kwargs['output'] = torch.tensor(out_np, dtype=torch.float)
+
+            angles =[float(item['C11']), float(item['C12']),  float(item['C22'])]
+            raw_cond = np.concatenate([self.geom_latents[idx], angles])
+            cm, cs = c['cond']['mean'], c['cond']['std']
+            cond_n = (raw_cond - cm)/cs
+            node_kwargs['cond'] = torch.tensor(cond_n, dtype=torch.float).unsqueeze(0)
+            if self.mode in ('train','val'):
+                raw_s = np.array([float(item[k]) for k in skeys])
+                sm, ss = c['scalars']['mean'], c['scalars']['std']
+                scal_n = (raw_s - sm)/ss
+                node_kwargs['output_scalars'] = torch.tensor(scal_n, dtype=torch.float).unsqueeze(0)
+            data_list.append(Data(**node_kwargs))
+        return data_list
+
+    # def process_dataset_plot(self):
+    #     data_list = []
+    #     c = self.coef_norm
+    #     skeys = ['effective_energy']
+
+
+
+
+
+
+    #     for idx in range(len(self.Hyper_elas)):
+
+    #         item = list(self.Hyper_elas.values())[idx]
+    #         pts = np.array(item.pos)
+    #         sdf = np.array(item.x[:,2])
+
+
+    #         if self.num_points and pts.shape[0] > self.num_points:
+    #             sel = np.random.choice(pts.shape[0], self.num_points, replace=False)
+    #             pts, sdf = pts[sel], sdf[sel]
+    #         pmin, pr = c['pos']['min'], c['pos']['range']
+    #         smin, sr = c['sdf']['min'], c['sdf']['range']
+    #         pts_n = 2*(pts - pmin)/pr - 1
+    #         sdf_n = 2*((sdf - smin)/sr) - 1
+    #         # per-node features
+    #         input_feats = torch.tensor(np.concatenate([pts_n, sdf_n[:,None]],1), dtype=torch.float)
+    #         node_kwargs = {
+    #             'input': input_feats,
+    #             'pos':   torch.tensor(pts_n, dtype=torch.float)  # for batching
+    #         }
+
+
+
+
+
+    #         u1 = np.array(item['u1'])
+    #         u2 = np.array(item['u2'])
+    #         P11 = np.array(item['P11'])
+    #         P12 = np.array(item['P12'])
+    #         P22 = np.array(item['P22'])
+    #         P21 = np.array(item['P21'])
+    #         psi = np.array(item['psi'])
+
+
+
+
+
+    #         om, os = c['output']['mean'], c['output']['std']
+    #         out = np.stack([u1, u2, P11, P12, P22, P21, psi],1)
+
+    #         node_kwargs['output'] = torch.tensor(out, dtype=torch.float)
+
+    #         angles =[float(item['C11']), float(item['C12']),  float(item['C22'])]
+    #         raw_cond = np.concatenate([self.geom_latents[idx], angles])
+    #         cm, cs = c['cond']['mean'], c['cond']['std']
+    #         cond_n = (raw_cond - cm)/cs
+    #         node_kwargs['cond'] = torch.tensor(cond_n, dtype=torch.float).unsqueeze(0)
+    #         if self.mode in ('train','val'):
+    #             raw_s = np.array([float(item[k]) for k in skeys])
+    #             sm, ss = c['scalars']['mean'], c['scalars']['std']
+    #             scal_n = (raw_s - sm)/ss
+    #             node_kwargs['output_scalars'] = torch.tensor(scal_n, dtype=torch.float).unsqueeze(0)
+    #         data_list.append(Data(**node_kwargs))
+    #     return data_list
+
+
+
+
+
+
+    def split_val(self, val_size, seed=None):
+        rng = np.random.RandomState(seed)
+        chosen = rng.choice(self.idx_list, size=val_size, replace=False).tolist()
+        train_idx = [i for i in self.idx_list if i not in chosen]
+        train_ds = Hyper_Elastic_2D_FlowDataset(self.Hyper_elas, self._raw_geom_latents,
+                                  mode='train', num_points=self.num_points,
+                                  idx_list=train_idx)
+        val_ds   = Hyper_Elastic_2D_FlowDataset(self.Hyper_elas, self._raw_geom_latents,
+                                  mode='val', coef_norm=self.coef_norm,
+                                  num_points=self.num_points,
+                                  idx_list=chosen)
+        return train_ds, val_ds
+
+    def len(self): return len(self.data_list)
+
+    def get(self, idx): return self.data_list[idx]
+
+
+
+
+class Hyper_SDFDataset(Dataset):
+    """
+
+    """
+    def __init__(self, Hyper_elas, is_train=True, coef_norm=None, num_points=None,
+                 transform=None, pre_transform=None):
+        super(Hyper_SDFDataset, self).__init__(None, transform, pre_transform)
+        self.Hyper_elas = Hyper_elas
+        self.num_points = num_points
+        self.is_train = is_train
+
+        if self.is_train:
+            self.coef_norm = self.compute_norm_params()
+        else:
+            if coef_norm is None:
+                raise ValueError("coef_norm must be provided when is_train is False.")
+            self.coef_norm = coef_norm
+
+        self.data_list = self.process_dataset()
+
+    def compute_norm_params(self):
+        """Compute normalization parameters (pos min/max, sdf mean/std) from all samples."""
+        all_positions = []
+        all_sdf = []
+        for idx in range(len(self.Hyper_elas)):
+
+            item = list(self.Hyper_elas.values())[idx]
+            pts = np.array(item.pos)
+            sdf = np.array(item.x[:,2]).reshape(-1,1)
+
+
+
+            all_positions.append(pts)
+            all_sdf.append(sdf)
+        all_positions = np.vstack(all_positions)
+        all_sdf = np.vstack(all_sdf)
+
+        pos_min = all_positions.min(axis=0)
+        pos_max = all_positions.max(axis=0)
+        sdf_mean = all_sdf.mean(axis=0)
+        sdf_std = all_sdf.std(axis=0)
+
+        # Avoid zero division
+        pos_range = pos_max - pos_min
+        pos_range[pos_range == 0] = 1.0
+        if sdf_std == 0:
+            sdf_std = 1.0
+
+        coef_norm = {
+            'pos_norm': {
+                'min': pos_min,
+                'max': pos_max
+            },
+            'mean': sdf_mean,
+            'std': sdf_std
+        }
+
+        print("Normalization parameters computed:")
+        print(f"Position min: {pos_min}, max: {pos_max}")
+        print(f"SDF mean: {sdf_mean}, std: {sdf_std}")
+        return coef_norm
+
+    def process_dataset(self):
+        """Normalize, filter, subsample and convert each sample to a PyG Data object."""
+        data_list = []
+        pos_min = self.coef_norm['pos_norm']['min']
+        pos_max = self.coef_norm['pos_norm']['max']
+        sdf_mean = self.coef_norm['mean']
+        sdf_std = self.coef_norm['std']
+
+        # Handle zero-range safeguards
+        pos_range = pos_max - pos_min
+        pos_range[pos_range == 0] = 1.0
+
+        for idx in range(len(self.Hyper_elas)):
+            item = list(self.Hyper_elas.values())[idx]
+            pts = np.array(item.pos)
+            sdf = np.array(item.x[:,2]).reshape(-1,1)
+
+
+
+            # Normalize positions to [-1, 1]
+            pts_norm = 2 * (pts - pos_min) / pos_range - 1
+            # Normalize SDF to zero mean, unit std
+            sdf_norm = (sdf - sdf_mean) / sdf_std
+
+
+            # Subsample if requested
+            # if self.num_points is not None and pts_norm.shape[0] > self.num_points:
+            #     indices = np.random.choice(pts_norm.shape[0], self.num_points, replace=False)
+            #     pts_norm = pts_norm[indices]
+            #     sdf_norm = sdf_norm[indices]
+
+            data = Data(
+                pos=torch.tensor(pts_norm, dtype=torch.float),
+                input=torch.tensor(pts_norm, dtype=torch.float),
+                output=torch.tensor(sdf_norm, dtype=torch.float),
+                is_airfoil=torch.zeros((pts_norm.shape[0],), dtype=torch.float)
+            )
+            data_list.append(data)
+        return data_list
+
+    def len(self):
+        return len(self.data_list)
+
+    def get(self, idx):
+        return self.data_list[idx]
+
+
+
+
+
+
+def subsample_dataset(dataset, num_points, seed=None, mode ='1'):
+    """
+    Subsample each graph in `dataset` to at most `num_points` nodes,
+    by randomly selecting rows from `data.input` and `data.output`.
+
+    Args:
+        dataset: iterable of torch_geometric.data.Data
+        num_points: int, max number of nodes per graph
+        seed: optional int, for reproducibility
+
+        mode : - 1 on tire aléatoirement les indices pour subsample le dataset
+               - 2 on tire les indices en fonctions de la SDF , plus la SDF est petite plus il est probable de tiré ses points.
+
+    Returns:
+        List[Data]: new list of Data objects with subsampled inputs/outputs
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    out = []
+    for data in dataset:
+        N = data.input.size(0)
+        if N > num_points:
+
+
+            if mode == '1':
+                # pick random subset of node indices
+                idx = np.random.choice(N, num_points, replace=False)
+                idx = torch.from_numpy(idx).long()
+
+
+            # subsample inputs
+            inp_sub = data.input[idx]
+            pos_sub = data.pos[idx]
+            # subsample outputs if they exist
+            out_sub = data.output[idx] if hasattr(data, 'output') else None
+
+            # build new Data
+            new_data = Data(input=inp_sub, pos=pos_sub)
+            if out_sub is not None:
+                new_data.output = out_sub
+            # carry through the graph-level fields unchanged
+            if hasattr(data, 'cond'):
+                new_data.cond = data.cond
+            if hasattr(data, 'output_scalars'):
+                new_data.output_scalars = data.output_scalars
+        else:
+            # nothing to do
+            new_data = data
+
+        out.append(new_data)
+    return out
+
