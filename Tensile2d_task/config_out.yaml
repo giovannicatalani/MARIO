@@ -19,7 +19,7 @@ optim:
   num_points: 2000
 
 inr:
-  model_type : "ms_fourier_features"
+  model_type : "ms_fourier_features"  # or "ms_fourier_features_MOE"
   latent_dim : 22 #set this to dim latent geom + inflow condtions dim
   in_dim : 3
   out_dim : 5
@@ -43,5 +43,7 @@ inr:
   add_cond_in: False
   add_sdf_in:
   global_norm: False
+  latent_dim_MOE: 22
+  depth_MOE: 3
 
 

@@ -1,6 +1,6 @@
 import torch
 from src.models import  MultiScaleModulatedFourierFeatures, ModulatedFourierFeatures
-
+from Tensile2d_task.models_MOE import MultiScaleModulatedFourierFeatures_MOE
 
 def create_inr_instance(cfg, input_dim=1, output_dim=1, device="cuda"):
     device = torch.device(device)
@@ -38,6 +38,24 @@ def create_inr_instance(cfg, input_dim=1, output_dim=1, device="cuda"):
             base_frequency=cfg.inr.base_frequency,
         ).to(device)
 
+
+    elif cfg.inr.model_type == "ms_fourier_features_MOE":
+        inr = MultiScaleModulatedFourierFeatures_MOE(
+            input_dim=input_dim,
+            output_dim=output_dim,
+            num_frequencies=cfg.inr.num_frequencies,
+            latent_dim=cfg.inr.latent_dim,
+            width=cfg.inr.hidden_dim,
+            depth=cfg.inr.depth,
+            depth_hnn= cfg.inr.hypernet_depth,
+            include_input=cfg.inr.include_input,
+            scales=cfg.inr.scale,
+            conditioning_type='shift_modulation',
+            scalar_out_dim= cfg.inr.out_scalar_dim,
+            depth_MOE = cfg.inr.depth_MOE,
+            latent_dim_MOE = cfg.inr.latent_dim_MOE
+        ).to(device)
+    
 
 
 

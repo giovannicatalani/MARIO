@@ -7,6 +7,8 @@ try:
 except:
     from conditioning import shift_modulation
 
+import torch.nn.functional as F
+
 class LatentToModulation(nn.Module):
     """Maps a latent vector to a set of modulations.
     Args:
@@ -157,7 +159,32 @@ class ModulatedFourierFeatures(nn.Module):
 
 
 
-class MultiScaleModulatedFourierFeatures(nn.Module):
+    
+
+class MOE_network(nn.Module):
+    def __init__(self, input_dim, num_experts, latent_dim_MOE, depth_MOE=3):
+        super().__init__()
+        layers = []
+        in_dim = input_dim
+        for i in range(depth_MOE - 1):
+            layers.append(nn.Linear(in_dim, latent_dim_MOE))
+            layers.append(nn.ReLU(inplace=True))
+            in_dim = latent_dim_MOE
+        layers.append(nn.Linear(latent_dim_MOE, num_experts))
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = self.net(x)
+        alpha_expert = F.softmax(out, dim=-1)
+        return alpha_expert
+
+
+
+
+
+
+
+class MultiScaleModulatedFourierFeatures_MOE(nn.Module):
     def __init__(
         self,
         input_dim=5,
@@ -173,6 +200,9 @@ class MultiScaleModulatedFourierFeatures(nn.Module):
         num_heads=4,
         scalar_hidden_dim=128,
         scalar_out_dim=6,
+        depth_MOE = 3
+        latent_dim_MOE = 22
+
     ):
 
         super().__init__()
@@ -180,6 +210,10 @@ class MultiScaleModulatedFourierFeatures(nn.Module):
         self.include_input = include_input
         self.scales = scales
         self.conditioning_type = conditioning_type
+
+        self.latent_dim_MOE = latent_dim_MOE
+        self.depth_MOE = depth_MOE
+
 
         self.embeddings = nn.ModuleList([GaussianEncoding(embedding_size=num_frequencies * 2, scale=scale, dims=input_dim) for scale in scales])
         embed_dim = num_frequencies * 2
@@ -192,8 +226,10 @@ class MultiScaleModulatedFourierFeatures(nn.Module):
             [nn.Linear(self.in_channels[k], self.out_channels[k]) for k in range(depth)]
         )
 
+
         self.attention_weights = nn.Sequential(nn.Linear(256, len(self.scales)),nn.Softmax(dim = -1))          ### Partie rajouter pour tester
         self.output_layer = nn.Linear(256, output_dim)                                                             ### Partie rajouter pour tester
+
 
         self.final_linear = nn.Linear(len(self.scales) * width, output_dim)
         self.depth = depth
@@ -214,12 +250,15 @@ class MultiScaleModulatedFourierFeatures(nn.Module):
             nn.Linear(scalar_hidden_dim, scalar_out_dim),
         )
 
+
+        self.MOE_expert = MOE_network(input_dim = input_dim, num_experts = len(self.scales) , latent_dim_MOE =  self.latent_dim_MOE, depth_MOE = self.depth_MOE)    #############
+
+
     def modulated_forward(self, x, z):
         x_shape = x.shape[:-1]
-        #print(f"x shape = {x.shape}")
-        #print(f" x_shape = {x_shape}")
         x = x.view(x.shape[0], -1, x.shape[-1])
-        #print(f"x shape = {x.shape}")
+
+        alpha_MOE = self.MOE_expert(x)
 
         features = self.cond_to_modulation(z)
         positions = [embedding(x) for embedding in self.embeddings]
@@ -230,50 +269,14 @@ class MultiScaleModulatedFourierFeatures(nn.Module):
         if self.conditioning_type == 'shift_modulation':
             pre_outs = [self.conditioning(pos, features, self.layers[:-1], torch.relu) for pos in positions]
         outs = [self.layers[-1](pre_out) for pre_out in pre_outs]
-        #print(outs)
-        #print(len(outs))
-        #print(f"outs shape = {outs[0].shape}")
-
-        # # Concatenate the outputs from each scale
-        concatenated_out = torch.cat(outs, axis=-1)
-
-        # # A final linear layer to combine multi-scale outputs
-        final_out = self.final_linear(concatenated_out)
-        #print(final_out.shape)
-        #breakpoint()
-
-        ############## fusion  ############
-
-        # stacked_outs = torch.stack(outs, dim = 2)
-        # mean_feat = torch.mean(stacked_outs, dim  = 2)
-        # attn_input = mean_feat.view(-1,256)
-
-        # attn_logits = self.attention_weights(attn_input)
-        # attn_weights = attn_logits.view(-1, 1, len(self.scales), 1)
-        # weighted = stacked_outs * attn_weights
-        # fused = weighted.sum(dim = 2)
-        # final_out = self.output_layer(fused)
-
-        #############################################
 
 
+        outs = [out.view(-1,256) for out in outs]
+        stacked_expert = torch.stack(outs, dim = 1)
+        alpha_MOE = alpha_MOE.unsqueeze(-1).squeeze(1)
+        output = torch.sum(alpha_MOE * stacked_expert, dim = 1)
+        final_out = self.output_layer(output)
 
-
-        #attention_inputs = positions[0]
-       # B,N, _ = attention_inputs.shape
-
-#        attention_logits = self.attention_weights(attention_inputs.view(B * N,-1))
- #       attentions_weights = attention_logits.view(B,N,len(self.scales), 1)
-
-        # Empiler couches :
-
-
-
-        # Produit pondéré
-#        fused_out = (attentions_weights * stacked_outs).sum(dim = 2)
-
-        # Projection finale
-#        final_out = self.output_layer(fused_out)
 
 
         return final_out.view(*x_shape, final_out.shape[-1])
