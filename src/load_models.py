@@ -38,6 +38,13 @@ def create_inr_instance(cfg, input_dim=1, output_dim=1, device="cuda"):
             base_frequency=cfg.inr.base_frequency,
         ).to(device)
 
+
+
+
+
+
+        
+
     return inr
 
 # Function to load a model

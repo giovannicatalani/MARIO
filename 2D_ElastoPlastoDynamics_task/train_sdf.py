@@ -10,13 +10,13 @@ import matplotlib.pyplot as plt
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.loader import DataLoader
-from TimeDataLoader import ElastoPlasticSDFDataset, subsample_dataset
+from dataset import ElastoPlasticSDFDataset, subsample_dataset
 # allow imports of your project
 import sys
 sys.path.append(str(Path(__file__).parents[1]))
 
-from utils.utils_training import graph_outer_step
-from utils.load_models import create_inr_instance, load_inr
+from src.utils_training import graph_outer_step
+from src.load_models import create_inr_instance, load_inr
 
 from pre_process_dataset_sdf import pre_process_sdf
 

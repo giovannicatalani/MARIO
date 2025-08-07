@@ -12,11 +12,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
-from utils.load_models import create_inr_instance,load_inr
+
 from torch_geometric.loader import DataLoader
 
-from utils.dataset import Hyper_Elastic_2D_FlowDataset, subsample_dataset
-from utils.utils_training import training_step
+from dataset import Hyper_Elastic_2D_FlowDataset, subsample_dataset
+from src.load_models import create_inr_instance,load_inr
+from src.utils_training import training_step
 from torch.utils.data import Subset
 from pre_dataset import pre_process_dataset
 

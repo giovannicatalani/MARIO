@@ -7,7 +7,7 @@ import torch.nn as nn
 from pathlib import Path
 from tqdm import tqdm
 
-i
+
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.loader import DataLoader
@@ -19,9 +19,9 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append(str(Path(__file__).parents[1]))
 
-from utils.dataset import Hyper_SDFDataset, subsample_dataset
-from utils.utils_training import graph_outer_step
-from utils.load_models import create_inr_instance, load_inr
+from dataset import Hyper_SDFDataset, subsample_dataset
+from src.utils_training import graph_outer_step
+from src.load_models import create_inr_instance, load_inr
 
 from pre_dataset import pre_process_dataset
 
@@ -113,8 +113,6 @@ def main(cfg: DictConfig) -> None:
                 inr_model, batch,
                 cfg.optim.inner_steps,
                 alpha_in,
-                epoch ,
-                num_batch = compteur,
                 is_train=True,
             )
             loss = out["loss"]
@@ -150,8 +148,6 @@ def main(cfg: DictConfig) -> None:
                     inr_model, batch,
                     cfg.optim.inner_steps,
                     alpha_in,
-                    num_epoch = 100000,
-                    num_batch = 80,
                     is_train=False,
 
                 )

@@ -2,13 +2,13 @@ import numpy as np
 import torch
 from torch_geometric.data import Dataset, Data
 
-class Tensil_2D_flowDataset(Dataset):
+class ElastoPlasticFlowDataset(Dataset):
     """
 
     """
     def __init__(
         self,
-        Tensil_2d,
+        ElastoPlastic_dataset,
         geom_latents,
         mode='train',
         coef_norm=None,
@@ -18,9 +18,9 @@ class Tensil_2D_flowDataset(Dataset):
         pre_transform=None
     ):
         super().__init__(None, transform, pre_transform)
-        self.Tensil_2d = Tensil_2d
+        self.ElastoPlastic_dataset = ElastoPlastic_dataset
         self._raw_geom_latents = np.array(geom_latents)
-        total = len(Tensil_2d)
+        total = len(ElastoPlastic_dataset)
         self.idx_list = list(range(total)) if idx_list is None else list(idx_list)
         self.geom_latents = self._raw_geom_latents[self.idx_list]
         self.mode = mode
@@ -36,28 +36,31 @@ class Tensil_2D_flowDataset(Dataset):
 
     def compute_norm_params(self):
         pos_all, sdf_all = [], []
-        U1_all, U2_all, sig11_all, sig22_all, sig12_all = [], [], [], [], []
+        Ux_all, Uy_all = [], []
         cond_all, scal_all = [], []
-        scalar_keys = ['max_von_mises', 'max_U2_top', 'max_sig22_top']
-        for idx in range(len(self.Tensil_2d)):
+        scalar_keys = []   # Pas de scalaires
 
-            item = list(self.Tensil_2d.values())[idx]
-            pts = np.array(item.pos)
-            sdf = np.array(item.x[:,2])
+        for idx in range(len(self.ElastoPlastic_dataset)):
+
+            item = list(self.ElastoPlastic_dataset.values())[idx]  # item est une liste qui contient des objets Data pour chaque pas de temps
+            pts = np.array(item[0].pos) # je prend le premier element car pour les noeuds et sdf c'est toujours les memes dans le temps
+            sdf = np.array(item[0].x[:,2])
             pos_all.append(pts)
             sdf_all.append(sdf)
             if self.mode in ('train','val'):
 
-                U1_all.append(np.array(item['U1']).flatten())
-                U2_all.append(np.array(item['U2']).flatten())
-
-                sig11_all.append(np.array(item['sig11']).flatten())
-                sig22_all.append(np.array(item['sig22']).flatten())
-                sig12_all.append(np.array(item['sig12']).flatten())
+                for t in range (len(item)):
 
 
-            angles = [float(item['p']), float(item['p1']), float(item['p2']), float(item['p3']), float(item['p4']), float(item['p5'])]
-            cond_all.append(np.concatenate([self.geom_latents[self.idx_list.index(idx)], angles]))
+
+                    Ux_all.append(np.array(item[t].x[:,3]).flatten())
+                    Uy_all.append(np.array(item[t].x[:,4]).flatten())
+
+
+
+
+            #angles = [float(item['angle_in']), float(item['mach_out'])]   # pas de scalaire
+            cond_all.append([self.geom_latents[self.idx_list.index(idx)]])
             scal_all.append([float(item[k]) for k in scalar_keys])
         pos_all = np.vstack(pos_all)
         sdf_all = np.hstack(sdf_all)
@@ -68,95 +71,122 @@ class Tensil_2D_flowDataset(Dataset):
         sdf_range = sdf_all.max() - sdf_min or 1.0
         out_mean = out_std = None
         if self.mode in ('train','val'):
+            Ux_all = np.hstack(Ux_all)
+            Uy_all  = np.hstack(Uy_all)
 
-
-            U1_all = np.hstack(U1_all)
-            U2_all = np.hstack(U2_all)
-
-            sig11_all = np.hstack(sig11_all)
-            sig22_all = np.hstack(sig22_all)
-            sig12_all = np.hstack(sig12_all)
-
-
-
-            out_mean = np.array([U1_all.mean(), U2_all.mean(), sig11_all.mean(), sig22_all.mean(), sig12_all.mean()])
-            out_std  = np.array([U1_all.std(), U2_all.std(), sig11_all.std(), sig22_all.std(), sig12_all.std()])
+            out_mean = np.array([Ux_all.mean(), Uy_all.mean()])
+            out_std  = np.array([Ux_all.std(),  Uy_all.std()])
             out_std[out_std==0] = 1.0
         cond_all = np.vstack(cond_all)
         cond_mean = cond_all.mean(axis=0)
         cond_std  = cond_all.std(axis=0)
         cond_std[cond_std==0] = 1.0
-        scal_all = np.vstack(scal_all)
-        scal_mean = scal_all.mean(axis=0)
-        scal_std  = scal_all.std(axis=0)
-        scal_std[scal_std==0] = 1.0
+
+
+      
         return {
             'pos':    {'min': pos_min, 'range': pos_range},
             'sdf':    {'min': sdf_min, 'range': sdf_range},
             'output': {'mean': out_mean, 'std': out_std},
             'cond':   {'mean': cond_mean,'std': cond_std},
-            'scalars':{'mean': scal_mean,'std': scal_std}
+            
         }
 
     def process_dataset(self):
         data_list = []
         c = self.coef_norm
-        skeys =['max_von_mises', 'max_U2_top', 'max_sig22_top']
-        for idx in range(len(self.Tensil_2d)):
 
-            item = list(self.Tensil_2d.values())[idx]
-            pts = np.array(item.pos)
-            sdf = np.array(item.x[:,2])
+
+        for idx in range(len(self.ElastoPlastic_dataset)):
+
+
+
+            item = list(self.ElastoPlastic_dataset.values())[idx]       
+
+
+            pts = np.array(item[0].pos)
+            sdf = np.array(item[0].x[:,2])   
+
+
+
+
             if self.num_points and pts.shape[0] > self.num_points:
                 sel = np.random.choice(pts.shape[0], self.num_points, replace=False)
                 pts, sdf = pts[sel], sdf[sel]
+
+
+
             pmin, pr = c['pos']['min'], c['pos']['range']
             smin, sr = c['sdf']['min'], c['sdf']['range']
             pts_n = 2*(pts - pmin)/pr - 1
             sdf_n = 2*((sdf - smin)/sr) - 1
+
+
+
             # per-node features
             input_feats = torch.tensor(np.concatenate([pts_n, sdf_n[:,None]],1), dtype=torch.float)
-            node_kwargs = {
-                'input': input_feats,
-                'pos':   torch.tensor(pts_n, dtype=torch.float)  # for batching
-            }
-            if self.mode in ('train','val'):
+            node_kwargs = { 'pos':   torch.tensor(pts_n, dtype=torch.float)} # for batching
 
-
-
-                U1 = np.array(item['U1']).flatten()
-                U2 = np.array(item['U2']).flatten()
-                sig11 = np.array(item['sig11']).flatten()
-                sig22 = np.array(item['sig22']).flatten()
-                sig12 = np.array(item['sig12']).flatten()
-
-
-
-
-                om, os = c['output']['mean'], c['output']['std']
-                out_np = np.stack([(U1-om[0])/os[0], (U2-om[1])/os[1], (sig11-om[2])/os[2], (sig22-om[3])/os[3], (sig12-om[4])/os[4]],1)
-                node_kwargs['output'] = torch.tensor(out_np, dtype=torch.float)
-            angles = [float(item['p']), float(item['p1']), float(item['p2']), float(item['p3']), float(item['p4']), float(item['p5'])]
-            raw_cond = np.concatenate([self.geom_latents[idx], angles])
+            raw_cond = self.geom_latents[idx]
             cm, cs = c['cond']['mean'], c['cond']['std']
             cond_n = (raw_cond - cm)/cs
             node_kwargs['cond'] = torch.tensor(cond_n, dtype=torch.float).unsqueeze(0)
+
+            om, os = c['output']['mean'], c['output']['std']
             if self.mode in ('train','val'):
-                raw_s = np.array([float(item[k]) for k in skeys])
-                sm, ss = c['scalars']['mean'], c['scalars']['std']
-                scal_n = (raw_s - sm)/ss
-                node_kwargs['output_scalars'] = torch.tensor(scal_n, dtype=torch.float).unsqueeze(0)
-            data_list.append(Data(**node_kwargs))
+
+
+                for t in range(len(item)) :
+
+                    Ux_0 = np.array(item[t].x[:,3]).flatten()
+                    Uy_0  = np.array(item[t].x[:,4]).flatten()
+
+
+                    out_np_0 = np.stack([(Ux_0-om[0])/os[0], (Uy_0-om[1])/os[1]],1)
+
+
+                    input_feats = torch.tensor(np.concatenate([pts_n, sdf_n[:,None], out_np_0],1), dtype=torch.float)
+                    node_kwargs['input'] = input_feats
+
+
+
+                    Ux_1 = np.array(item[t].output_fields[:,0]).flatten()
+                    Uy_1  = np.array(item[t].output_fields[:,1]).flatten()
+
+
+                    out_np_1 = np.stack([(Ux_1-om[0])/os[0], (Uy_1-om[1])/os[1]],1)
+
+                    node_kwargs['output'] = torch.tensor(out_np_1, dtype=torch.float)
+
+                    data_list.append(Data(**node_kwargs))
+            else:
+
+
+                    Ux_0 = np.array(item[0].x[:,3]).flatten()
+                    Uy_0  = np.array(item[0].x[:,4]).flatten()
+                    out_np_0 = np.stack([(Ux_0-om[0])/os[0], (Uy_0-om[1])/os[1]],1)
+
+
+
+
+                    input_feats = torch.tensor(np.concatenate([pts_n, sdf_n[:,None], out_np_0],1), dtype=torch.float)
+                    node_kwargs['input'] = input_feats
+                    data_list.append(Data(**node_kwargs))
+
+
+
+
+
         return data_list
 
     def split_val(self, val_size, seed=None):
         rng = np.random.RandomState(seed)
         chosen = rng.choice(self.idx_list, size=val_size, replace=False).tolist()
         train_idx = [i for i in self.idx_list if i not in chosen]
-        train_ds = Tensil_2D_flowDataset(self.Tensil_2d, self._raw_geom_latents,
+        train_ds = ElastoPlasticFlowDataset(self.ElastoPlastic_dataset, self._raw_geom_latents,
                                   mode='train', num_points=self.num_points,
                                   idx_list=train_idx)
-        val_ds   = Tensil_2D_flowDataset(self.Tensil_2d, self._raw_geom_latents,
+        val_ds   = ElastoPlasticFlowDataset(self.ElastoPlastic_dataset, self._raw_geom_latents,
                                   mode='val', coef_norm=self.coef_norm,
                                   num_points=self.num_points,
                                   idx_list=chosen)
@@ -169,14 +199,14 @@ class Tensil_2D_flowDataset(Dataset):
 
 
 
-class Tensil_2D_SDF(Dataset):
+class ElastoPlasticSDFDataset(Dataset):
     """
-
+  
     """
-    def __init__(self, Tensil_2d, is_train=True, coef_norm=None, num_points=None,
+    def __init__(self, ElastoPlastic_dataset, is_train=True, coef_norm=None, num_points=None,
                  transform=None, pre_transform=None):
-        super(Tensil_2D_SDF, self).__init__(None, transform, pre_transform)
-        self.Tensil_2d = Tensil_2d
+        super(ElastoPlasticSDFDataset, self).__init__(None, transform, pre_transform)
+        self.ElastoPlastic_dataset = ElastoPlastic_dataset
         self.num_points = num_points
         self.is_train = is_train
 
@@ -193,13 +223,10 @@ class Tensil_2D_SDF(Dataset):
         """Compute normalization parameters (pos min/max, sdf mean/std) from all samples."""
         all_positions = []
         all_sdf = []
-        for item in self.Tensil_2d:
-
-
-            pts = np.array(item.pos)
-            sdf = np.array(item.sdf_continue).reshape(-1,1)
-
-
+        for idx in range(len(self.ElastoPlastic_dataset)):
+            item = list(self.ElastoPlastic_dataset.values())[idx]
+            pts = np.array(item[0].pos)
+            sdf = np.array(item[0].x[:,2]).reshape(-1, 1)
             all_positions.append(pts)
             all_sdf.append(sdf)
         all_positions = np.vstack(all_positions)
@@ -242,10 +269,10 @@ class Tensil_2D_SDF(Dataset):
         pos_range = pos_max - pos_min
         pos_range[pos_range == 0] = 1.0
 
-        for item in self.Tensil_2d:
-
-            pts = np.array(item.pos)
-            sdf = np.array(item.sdf_continue).reshape(-1,1)
+        for idx in range(len(self.ElastoPlastic_dataset)):
+            item = list(self.ElastoPlastic_dataset.values())[idx]
+            pts = np.array(item[0].pos)
+            sdf = np.array(item[0].x[:,2]).reshape(-1, 1)
 
             # Normalize positions to [-1, 1]
             pts_norm = 2 * (pts - pos_min) / pos_range - 1
