@@ -2,11 +2,10 @@ import numpy as np
 import torch
 from plaid.containers.sample import Sample
 from plaid.utils.split import split_dataset
+from plaid.containers.dataset import Dataset
 from plaid.problem_definition import ProblemDefinition
-from datasets import load_dataset
 from Muscat.Containers import MeshCreationTools as MCT
 from plaid.bridges import huggingface_bridge
-from datasets import load_dataset
 from torch_geometric.data import Data
 from torch_geometric.utils._coalesce import coalesce as geometric_coalesce
 from Muscat.Bridges.CGNSBridge import CGNSToMesh
@@ -21,27 +20,20 @@ from Muscat.Containers.Filters import FilterObjects as FO
 
 
 def pre_process_dataset():
+    
+    Hyper_Elastic_2D = Dataset()
+    Hyper_Elastic_2D._load_from_dir_('/path/to/plaid/dataset', verbose = True)
 
-    hf_dataset = load_dataset("PLAID-datasets/2D_Multiscale_Hyperelasticity")
-    dataset_2, problem_2 = huggingface_bridge.huggingface_dataset_to_plaid(hf_dataset)
+    probleme_def = ProblemDefinition()
+    probleme_def._load_from_dir_('/path/to/plaid/problem_definition')
 
-
-    Hyper_Elastic_2D = dataset_2
-    probleme_def = problem_2
+    ids_train = probleme_def.get_split('DOE_train')
+    ids_test  = probleme_def.get_split('DOE_test')
     add_sdf(Hyper_Elastic_2D)
 
-    print("#Splitting Dataset")
-    options = {
-        'shuffle': False,
-        'split_sizes': {
-            'test': 376,
-
-        },
-    }
-
-    split = split_dataset(Hyper_Elastic_2D, options)
-    test_data=Hyper_Elastic_2D.get_samples(split['test'])
-    train_data=Hyper_Elastic_2D.get_samples(split['other'])
+    # Split the dataset into training and test sets
+    test_data=Hyper_Elastic_2D.get_samples(ids_test)
+    train_data=Hyper_Elastic_2D.get_samples(ids_train)
 
     train_data_geometric={key : base_sample_to_geometric(sample,key,probleme_def) for key, sample in train_data.items()}
     test_data_geometric={key : base_sample_to_geometric(sample,key,probleme_def) for key, sample in test_data.items()}
@@ -88,7 +80,7 @@ def base_sample_to_geometric(sample: Sample, sample_id: int, problem_definition:
         Data: the converted data sample
     """
 
-    vertices            = sample.get_vertices(base_name="Base_2_2")
+    vertices  = sample.get_vertices(base_name="Base_2_2")
     edge_index = []
     n_elem_types = len(sample.get_elements(base_name="Base_2_2"))
     coalesce = True

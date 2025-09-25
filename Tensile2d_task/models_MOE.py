@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 try:
-    from utils.conditioning import shift_modulation
+    from src.conditioning import shift_modulation
 except:
     from conditioning import shift_modulation
 
@@ -180,10 +180,6 @@ class MOE_network(nn.Module):
 
 
 
-
-
-
-
 class MultiScaleModulatedFourierFeatures_MOE(nn.Module):
     def __init__(
         self,
@@ -200,7 +196,7 @@ class MultiScaleModulatedFourierFeatures_MOE(nn.Module):
         num_heads=4,
         scalar_hidden_dim=128,
         scalar_out_dim=6,
-        depth_MOE = 3
+        depth_MOE = 3,
         latent_dim_MOE = 22
 
     ):
