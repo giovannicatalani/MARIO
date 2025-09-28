@@ -67,7 +67,7 @@ def main(cfg: DictConfig) -> None:
     )
     # 4) Randomly split off 50 samples for validation
     num_total = len(train_ds)
-    val_size  = 3
+    val_size  = 20
     rng = np.random.RandomState(42)
     all_idx = np.arange(num_total)
     rng.shuffle(all_idx)
@@ -90,8 +90,9 @@ def main(cfg: DictConfig) -> None:
         coef_norm    = coef_norm,
     )
     
-    #Testing
-    val_dataset = test_dataset
+    #Optionally test directly on test set
+    #val_dataset = test_dataset
+    
     
     
     ntrain = len(train_dataset)
@@ -221,8 +222,8 @@ def main(cfg: DictConfig) -> None:
                 fit_train_mse_in += loss.item() * n_samples
                 fit_test_field += field_test_loss.item() * n_samples
               
-            test_loss_in = fit_test_mse_in / (ntest)
-            test_loss_field = fit_test_field / (ntest)
+            test_loss_in = fit_test_mse_in / (nval)
+            test_loss_field = fit_test_field / (nval)
 
             
             scheduler.step(test_loss_in)
