@@ -4,17 +4,17 @@ restart_training: False
 dataset:
   root_path: /scratch/dmsm/gi.catalani/Airfrans/Dataset/
   task: scarce
-  train_latents_path: /home/dmsm/gi.catalani/Projects/mario_challenge/airfrans_task/trainings/training_sdf_20250515-164202/modulations/scarce_train_8.npz
-  test_latents_path:  /home/dmsm/gi.catalani/Projects/mario_challenge/airfrans_task/trainings/training_sdf_20250515-164202/modulations/scarce_test_8.npz
+  train_latents_path: /home/dmsm/gi.catalani/Projects/mario_challenge/airfrans_task/trainings/training_sdf_20250926-102318/modulations/scarce_train_8.npz
+  test_latents_path:  /home/dmsm/gi.catalani/Projects/mario_challenge/airfrans_task/trainings/training_sdf_20250926-102318/modulations/scarce_test_8.npz
 
 optim:
   batch_size: 4
   batch_size_val: 
-  lr_inr : 1e-4
+  lr_inr : 1e-3
   epochs : 2000
   lr_mlp : 1e-4
   weight_decay_mlp: 0
-  num_points: 5000
+  num_points: 10000
 
 
 inr:

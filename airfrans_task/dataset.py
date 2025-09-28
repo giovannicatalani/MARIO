@@ -148,9 +148,10 @@ class AirfransFlowDataset(Dataset):
     PyG Dataset for Airfrans flow data.
 
     Modes:
-      - 'train': include inputs, pos, outputs, cond; computes normals
-      - 'val':   include inputs, pos, outputs, cond; uses provided coef_norm
-      - 'test':  include inputs, pos, cond only; uses provided coef_norm
+      - 'train': include inputs, pos, outputs, cond; computes coef_norm on training subset
+      - 'val':   include inputs, pos, outputs, cond; uses coef_norm from training set
+      - 'test':  include inputs, pos, outputs, cond; uses coef_norm from training set
+                 (outputs are included for evaluation, but not used for training)
 
     Each point in the dataset is described by:
       - Position (2D): indices 0, 1
@@ -168,8 +169,8 @@ class AirfransFlowDataset(Dataset):
 
     Normalizations:
       inputs: [x, y] & sdf -> min-max to [-1, 1]
-      outputs: [velocity-x, velocity-y, pressure, turb_viscosity] -> standard
-      cond: geom_latents + inlet_velocity -> standard
+      outputs: [velocity-x, velocity-y, pressure, turb_viscosity] -> standard (mean/std)
+      cond: geom_latents + inlet_velocity -> standard (mean/std)
     """
     def __init__(
         self,
@@ -215,7 +216,7 @@ class AirfransFlowDataset(Dataset):
         self.data_list = self.process_dataset()
 
     def compute_norm_params(self):
-        """Compute normalization parameters from training data."""
+        """Compute normalization parameters from training data subset (self.idx_list)."""
         pos_all = []
         sdf_all = []
         output_fields_all = {i: [] for i in range(len(self.output_indices))}
@@ -225,7 +226,6 @@ class AirfransFlowDataset(Dataset):
         for idx in self.idx_list:
             data = self.data_list[idx]
             
-            # Extract position, SDF, and outputs
             pos = data[:, self.pos_indices]
             sdf = data[:, self.sdf_index]
             outputs = data[:, self.output_indices]
@@ -234,28 +234,25 @@ class AirfransFlowDataset(Dataset):
             pos_all.append(pos)
             sdf_all.append(sdf)
             
-            if self.mode in ('train', 'val'):
-                for i in range(len(self.output_indices)):
-                    output_fields_all[i].append(outputs[:, i])
+            # Always collect outputs (so test can also reuse stats)
+            for i in range(len(self.output_indices)):
+                output_fields_all[i].append(outputs[:, i])
             
-            # Collect inlet velocity for conditional input
-            inlet_vel_all.append(np.mean(inlet_vel, axis=0))  # Use average inlet velocity
-            
-            # Add latent conditions with inlet velocities
+            inlet_vel_all.append(np.mean(inlet_vel, axis=0))  
             cond = np.concatenate([
                 self.geom_latents[self.idx_list.index(idx)], 
-                np.mean(inlet_vel, axis=0)  # Average inlet velocity
+                np.mean(inlet_vel, axis=0)  
             ])
             cond_all.append(cond)
         
-        # Process position data
+        # Position
         pos_all = np.vstack(pos_all)
         pos_min = pos_all.min(axis=0)
         pos_max = pos_all.max(axis=0)
         pos_range = pos_max - pos_min
         pos_range[pos_range == 0] = 1.0
         
-        # Process SDF data
+        # SDF
         sdf_all = np.hstack(sdf_all)
         sdf_min = sdf_all.min()
         sdf_max = sdf_all.max()
@@ -263,25 +260,20 @@ class AirfransFlowDataset(Dataset):
         if sdf_range == 0:
             sdf_range = 1.0
         
-        # Process output fields
+        # Outputs
         output_means = {}
         output_stds = {}
+        for i, field_name in enumerate(self.output_fields):
+            field_data = np.hstack(output_fields_all[i])
+            output_means[field_name] = float(field_data.mean())
+            output_stds[field_name] = float(field_data.std()) or 1.0
         
-        if self.mode in ('train', 'val'):
-            for i, field_name in enumerate(self.output_fields):
-                field_data = np.hstack(output_fields_all[i])
-                output_means[field_name] = float(field_data.mean())
-                output_stds[field_name] = float(field_data.std())
-                if output_stds[field_name] == 0:
-                    output_stds[field_name] = 1.0
-        
-        # Process conditional inputs
+        # Conditional inputs
         cond_all = np.vstack(cond_all)
         cond_mean = cond_all.mean(axis=0)
         cond_std = cond_all.std(axis=0)
         cond_std[cond_std == 0] = 1.0
         
-        # Create and return normalization parameters
         return {
             'pos': {'min': pos_min, 'max': pos_max, 'range': pos_range},
             'sdf': {'min': sdf_min, 'max': sdf_max, 'range': sdf_range},
@@ -297,7 +289,6 @@ class AirfransFlowDataset(Dataset):
         for i, idx in enumerate(self.idx_list):
             data = self.data_list[idx]
             
-            # Extract required components
             pos = data[:, self.pos_indices]
             sdf = data[:, self.sdf_index]
             airfoil_bool = data[:, self.airfoil_index]
@@ -308,49 +299,38 @@ class AirfransFlowDataset(Dataset):
                 pos = pos[sel]
                 sdf = sdf[sel]
                 airfoil_bool = airfoil_bool[sel]
-                # Also subsample outputs if needed
-                if self.mode in ('train', 'val'):
-                    data = data[sel]
+                data = data[sel]
             
-            # Normalize position to [-1, 1]
-            pmin, pmax = c['pos']['min'], c['pos']['max']
-            prange = c['pos']['range']
+            # Normalize pos
+            pmin, prange = c['pos']['min'], c['pos']['range']
             pos_n = 2 * (pos - pmin) / prange - 1
             
-            # Normalize SDF to [-1, 1]
+            # Normalize SDF
             smin, srange = c['sdf']['min'], c['sdf']['range']
             sdf_n = 2 * ((sdf - smin) / srange) - 1
             
-            # Combine position and SDF as input features
+            # Inputs
             input_feats = torch.tensor(np.concatenate([pos_n, sdf_n[:, None]], axis=1), dtype=torch.float)
-            
-            # Prepare node kwargs
             node_kwargs = {
                 'input': input_feats,
                 'pos': torch.tensor(pos_n, dtype=torch.float),
                 'is_airfoil': torch.tensor(airfoil_bool, dtype=torch.float)
             }
             
-            # Add outputs if in train or val mode
-            if self.mode in ('train', 'val'):
-                output_data = []
-                for i, field_name in enumerate(self.output_fields):
-                    field_data = data[:, self.output_indices[i]]
-                    
-                    # Normalize the field
-                    mean_val = c['output']['mean'][field_name]
-                    std_val = c['output']['std'][field_name]
-                    field_norm = (field_data - mean_val) / std_val
-                    output_data.append(field_norm[:, None])
-                
-                if output_data:
-                    node_kwargs['output'] = torch.tensor(np.hstack(output_data), dtype=torch.float)
+            # Always add outputs (train/val/test)
+            output_data = []
+            for j, field_name in enumerate(self.output_fields):
+                field_data = data[:, self.output_indices[j]]
+                mean_val = c['output']['mean'][field_name]
+                std_val = c['output']['std'][field_name]
+                field_norm = (field_data - mean_val) / std_val
+                output_data.append(field_norm[:, None])
             
-            # Add conditional inputs (latent + inlet velocity)
-            inlet_vel = np.mean(data[:, self.inlet_vel_indices], axis=0)  # Average inlet velocity
+            node_kwargs['output'] = torch.tensor(np.hstack(output_data), dtype=torch.float)
+            
+            # Conditional inputs
+            inlet_vel = np.mean(data[:, self.inlet_vel_indices], axis=0)
             cond = np.concatenate([self.geom_latents[i], inlet_vel])
-            
-            # Normalize conditional inputs
             cm, cs = c['cond']['mean'], c['cond']['std']
             cond_n = (cond - cm) / cs
             node_kwargs['cond'] = torch.tensor(cond_n, dtype=torch.float).unsqueeze(0)
@@ -360,7 +340,6 @@ class AirfransFlowDataset(Dataset):
         return processed_data_list
 
     def split_val(self, val_size, seed=None):
-        """Split the dataset into training and validation sets."""
         rng = np.random.RandomState(seed)
         chosen = rng.choice(self.idx_list, size=val_size, replace=False).tolist()
         train_idx = [i for i in self.idx_list if i not in chosen]
@@ -379,7 +358,7 @@ class AirfransFlowDataset(Dataset):
             self.data_names, 
             self._raw_geom_latents,
             mode='val', 
-            coef_norm=self.coef_norm,
+            coef_norm=train_ds.coef_norm,
             num_points=self.num_points,
             idx_list=chosen
         )

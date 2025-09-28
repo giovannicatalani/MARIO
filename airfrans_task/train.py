@@ -90,7 +90,10 @@ def main(cfg: DictConfig) -> None:
         coef_norm    = coef_norm,
     )
     
-
+    #Testing
+    val_dataset = test_dataset
+    
+    
     ntrain = len(train_dataset)
     nval = len(val_dataset)
     ntest = len(test_dataset)
@@ -108,8 +111,8 @@ def main(cfg: DictConfig) -> None:
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer_in,
         mode='min',
-        factor=0.99,      # Reduce LR when plateauing
-        patience=200,     # Number of epochs to wait before reducing LR
+        factor=0.8,      # Reduce LR when plateauing
+        patience=10,     # Number of epochs to wait before reducing LR
         verbose=True,    # Print message when LR is reduced
         min_lr=1e-5    # Minimum LR threshold
     )
@@ -203,7 +206,7 @@ def main(cfg: DictConfig) -> None:
             val_loader = DataLoader(val_subsample_dataset, batch_size=batch_size, shuffle=True)
             for substep,graph in enumerate(val_loader):  
                 n_samples = len(graph)
-                inr_in.train()
+                inr_in.eval()
                 graph = graph.cuda() if torch.cuda.is_available() else graph
                 outputs = training_step(
                     inr_in,
@@ -286,7 +289,7 @@ def main(cfg: DictConfig) -> None:
         'fields_pred':  all_field_preds,  
     }
 
-    save_path = os.path.join(results_directory, f"{run_name}_predictions.pt")
+    save_path = os.path.join('/scratch/dmsm/gi.catalani/Airfrans/', f"{run_name}_predictions.pt")
     torch.save(results, save_path)
     print(f"Saved predictions to {save_path}")
     return
