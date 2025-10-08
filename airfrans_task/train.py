@@ -58,28 +58,14 @@ def main(cfg: DictConfig) -> None:
     train_latents = np.load(cfg.dataset.train_latents_path)
     test_latents = np.load(cfg.dataset.test_latents_path)
     # Create dataset instance
-    # 3) Build the TRAIN-mode dataset (this computes all normalization stats)
-    train_ds = AirfransFlowDataset(
+    train_dataset = AirfransFlowDataset(
         train_data,
         train_names,
         geom_latents = train_latents['train_modulations'],
         mode         = 'train',
     )
-    # 4) Randomly split off 50 samples for validation
-    num_total = len(train_ds)
-    val_size  = 20
-    rng = np.random.RandomState(42)
-    all_idx = np.arange(num_total)
-    rng.shuffle(all_idx)
-
-    val_idx   = all_idx[:val_size].tolist()
-    train_idx = all_idx[val_size:].tolist()
-
-    train_dataset = Subset(train_ds, train_idx)
-    val_dataset   = Subset(train_ds, val_idx)
-
-    # 4) Split off 50 for validation
-    coef_norm = train_ds.coef_norm
+    
+    coef_norm = train_dataset.coef_norm
 
     # 5) Build the TEST-mode dataset (reusing the same stats from full_train_ds)
     test_dataset = AirfransFlowDataset(
@@ -87,13 +73,10 @@ def main(cfg: DictConfig) -> None:
         test_names,
         geom_latents = test_latents['val_modulations'],
         mode         = 'test',
-        coef_norm    = coef_norm,
-    )
+        coef_norm    = coef_norm)
     
-    #Optionally test directly on test set
-    #val_dataset = test_dataset
-    
-    
+    #Optionally validate directly on test set
+    val_dataset = test_dataset
     
     ntrain = len(train_dataset)
     nval = len(val_dataset)
@@ -158,10 +141,11 @@ def main(cfg: DictConfig) -> None:
         fit_test_mse_in = 0
         fit_field  = 0.0
         fit_test_field = 0.0
+        comp_loss = np.zeros(4)  # Assuming 4 output fields for component-wise loss
         test_loss_in  = 1
         # Initialize lists for loss history
         
-        use_pred_loss = step % 5 == 0
+        use_pred_loss = True
         
         # Prepare the training dataset for the new epoch
         # Subsample the training dataset
@@ -221,15 +205,23 @@ def main(cfg: DictConfig) -> None:
                 field_test_loss = outputs["field_loss"].cpu().detach()
                 fit_train_mse_in += loss.item() * n_samples
                 fit_test_field += field_test_loss.item() * n_samples
-              
+                comp_loss += outputs["field_loss_components"].cpu().numpy() * n_samples
+            
             test_loss_in = fit_test_mse_in / (nval)
             test_loss_field = fit_test_field / (nval)
+            test_comp_loss = comp_loss / (nval)
 
             
             scheduler.step(test_loss_in)
             
             test_loss_history.append({'epoch': step, 'loss': test_loss_in, 'field_loss': test_loss_field})
-            wandb.log({"val_loss": test_loss_in, "epoch": step, "val_field_loss": test_loss_field})
+            wandb.log({"val_loss": test_loss_in, 
+                        "epoch": step, 
+                        "val_field_loss": test_loss_field,
+                        "val_field_loss_u": test_comp_loss[0],
+                        "val_field_loss_v": test_comp_loss[1],
+                        "val_field_loss_p": test_comp_loss[2],
+                        "val_field_loss_nut": test_comp_loss[3]})
             print('Test Loss', test_loss_in, 'Field Loss', test_loss_field)
 
             plt.figure()

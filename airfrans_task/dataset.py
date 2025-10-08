@@ -143,35 +143,75 @@ import numpy as np
 import torch
 from torch_geometric.data import Dataset, Data
 
+import numpy as np
+import torch
+from torch_geometric.data import Dataset, Data
+from typing import Literal
+
+
+def make_bl_layer(sample, thickness: float = 0.03, decay: Literal['linear', 'exponential', 'squared'] = 'squared'):
+    """
+    Compute a boundary-layer mask based on the normalized inverse of the SDF field.
+
+    Args:
+        sample: dict with key 'point_cloud_field/distance_function' (1D np.ndarray)
+        thickness: relative thickness (0 < thickness <= 1)
+        decay: 'linear', 'exponential', or 'squared'
+    Returns:
+        np.ndarray of shape (N,), boundary-layer mask in [0, 1]
+    """
+    if not (0 < thickness <= 1):
+        raise ValueError('Thickness should be in (0, 1].')
+
+    def threshold(var, value):
+        mask = var > value
+        var = var.copy()
+        var[~mask] = 0
+        if mask.any():
+            var[mask] = (var[mask] - value) / (var[mask].max() - value)
+        return var
+
+    df = sample['point_cloud_field/distance_function'].max() - sample['point_cloud_field/distance_function']
+    df = df / df.max()
+
+    if decay == 'squared':
+        return threshold(df, 1 - thickness) ** 2
+    elif decay == 'linear':
+        return threshold(df, 1 - thickness)
+    elif decay == 'exponential':
+        return (np.exp(threshold(df, 1 - thickness)) - 1) / (np.exp(1) - 1)
+    else:
+        raise ValueError(f"Unknown decay type: {decay}")
+
+
 class AirfransFlowDataset(Dataset):
     """
     PyG Dataset for Airfrans flow data.
 
     Modes:
-      - 'train': include inputs, pos, outputs, cond; computes coef_norm on training subset
-      - 'val':   include inputs, pos, outputs, cond; uses coef_norm from training set
-      - 'test':  include inputs, pos, outputs, cond; uses coef_norm from training set
-                 (outputs are included for evaluation, but not used for training)
+      - 'train': compute normalization stats
+      - 'val'/'test': reuse train stats
 
     Each point in the dataset is described by:
-      - Position (2D): indices 0, 1
-      - Inlet velocity (2D): indices 2, 3
-      - Distance to airfoil (SDF): index 4
-      - Normals (2D): indices 5, 6 (set to 0 if point is not on airfoil)
-      
-    Output fields (target):
-      - Velocity (2D): indices 7, 8
-      - Pressure/density: index 9
-      - Turbulent kinematic viscosity: index 10
-      
-    Additional:
-      - Airfoil boolean: index 11
+      - Position (x, y): indices [0, 1]
+      - Inlet velocity (u_in, v_in): indices [2, 3]
+      - Distance to airfoil (SDF): index [4]
+      - Normals (nx, ny): indices [5, 6]
+      - Airfoil boolean: index [11]
 
-    Normalizations:
-      inputs: [x, y] & sdf -> min-max to [-1, 1]
-      outputs: [velocity-x, velocity-y, pressure, turb_viscosity] -> standard (mean/std)
-      cond: geom_latents + inlet_velocity -> standard (mean/std)
+    Output fields (targets):
+      - Velocity (u, v): indices [7, 8]
+      - Pressure/density: [9]
+      - Turbulent viscosity: [10]
+
+    Input normalization:
+      - [x, y], sdf, normals, bl_mask → min-max normalized to [-1, 1]
+    Output normalization:
+      - [u, v, p, nu_t] → standard (mean/std)
+    Conditional normalization:
+      - [geom_latents, inlet_velocity] → standard (mean/std)
     """
+
     def __init__(
         self,
         data_list,
@@ -188,136 +228,167 @@ class AirfransFlowDataset(Dataset):
         self.data_list = data_list
         self.data_names = data_names
         self._raw_geom_latents = np.array(geom_latents)
-        total = len(data_list)
+        
+        outlier_names = ["airFoil2D_SST_50.077_-4.416_2.834_4.029_1.0_5.156"]
+        to_remove = [i for i, n in enumerate(self.data_names) if n in outlier_names]
+        if to_remove:
+            print(f"Removing outlier(s): {[self.data_names[i] for i in to_remove]}")
+            self.data_list = [d for i, d in enumerate(self.data_list) if i not in to_remove]
+            self.data_names = [n for i, n in enumerate(self.data_names) if i not in to_remove]
+            self._raw_geom_latents = np.delete(self._raw_geom_latents, to_remove, axis=0)
+        
+        total = len(self.data_list)
         self.idx_list = list(range(total)) if idx_list is None else list(idx_list)
         self.geom_latents = self._raw_geom_latents[self.idx_list]
         self.mode = mode
         self.num_points = num_points
-        
+
         # Define indices
         self.pos_indices = [0, 1]               # Position (x, y)
-        self.inlet_vel_indices = [2, 3]         # Inlet velocity components
+        self.inlet_vel_indices = [2, 3]         # Inlet velocity
         self.sdf_index = 4                      # Distance to airfoil
         self.normal_indices = [5, 6]            # Normal components
-        self.output_indices = [7, 8, 9, 10]     # Output fields: velocity (2), pressure, viscosity
+        self.output_indices = [7, 8, 9, 10]     # Output fields
         self.airfoil_index = 11                 # Airfoil boolean
-        
+
+        # Boundary layer mask parameters
+        self.bl_thickness = 0.03
+        self.bl_decay = 'squared'
+
         # Output field names
         self.output_fields = ['Velocity-x', 'Velocity-y', 'Pressure', 'Turbulent-viscosity']
-        
-        # norms
+
+        # Normalization coefficients
         if mode == 'train':
             self.coef_norm = self.compute_norm_params()
         else:
             if coef_norm is None:
                 raise ValueError("coef_norm required for non-train modes")
             self.coef_norm = coef_norm
-        
+
+        # Process dataset
         self.data_list = self.process_dataset()
 
     def compute_norm_params(self):
-        """Compute normalization parameters from training data subset (self.idx_list)."""
-        pos_all = []
-        sdf_all = []
+        """Compute normalization parameters from training subset."""
+        pos_all, sdf_all, normal_all, bl_all = [], [], [], []
         output_fields_all = {i: [] for i in range(len(self.output_indices))}
-        inlet_vel_all = []
         cond_all = []
-        
+
         for idx in self.idx_list:
             data = self.data_list[idx]
-            
             pos = data[:, self.pos_indices]
             sdf = data[:, self.sdf_index]
+            normals = data[:, self.normal_indices]
             outputs = data[:, self.output_indices]
             inlet_vel = data[:, self.inlet_vel_indices]
-            
+
+            # Boundary layer mask
+            sample = {'point_cloud_field/distance_function': sdf}
+            bl_mask = make_bl_layer(sample, thickness=self.bl_thickness, decay=self.bl_decay)
+
             pos_all.append(pos)
             sdf_all.append(sdf)
-            
-            # Always collect outputs (so test can also reuse stats)
+            normal_all.append(normals)
+            bl_all.append(bl_mask)
+
+            # Outputs
             for i in range(len(self.output_indices)):
                 output_fields_all[i].append(outputs[:, i])
-            
-            inlet_vel_all.append(np.mean(inlet_vel, axis=0))  
+
+            # Conditional latent
             cond = np.concatenate([
-                self.geom_latents[self.idx_list.index(idx)], 
-                np.mean(inlet_vel, axis=0)  
+                self.geom_latents[self.idx_list.index(idx)],
+                np.mean(inlet_vel, axis=0)
             ])
             cond_all.append(cond)
-        
+
         # Position
         pos_all = np.vstack(pos_all)
         pos_min = pos_all.min(axis=0)
         pos_max = pos_all.max(axis=0)
         pos_range = pos_max - pos_min
         pos_range[pos_range == 0] = 1.0
-        
+
         # SDF
         sdf_all = np.hstack(sdf_all)
-        sdf_min = sdf_all.min()
-        sdf_max = sdf_all.max()
+        sdf_min, sdf_max = sdf_all.min(), sdf_all.max()
         sdf_range = sdf_max - sdf_min
-        if sdf_range == 0:
-            sdf_range = 1.0
-        
+        sdf_range = 1.0 if sdf_range == 0 else sdf_range
+
+        # Normals
+        normal_all = np.vstack(normal_all)
+        normal_min = normal_all.min(axis=0)
+        normal_max = normal_all.max(axis=0)
+        normal_range = normal_max - normal_min
+        normal_range[normal_range == 0] = 1.0
+
+        # BL mask
+        bl_all = np.hstack(bl_all)
+        bl_min, bl_max = bl_all.min(), bl_all.max()
+        bl_range = bl_max - bl_min
+        bl_range = 1.0 if bl_range == 0 else bl_range
+
         # Outputs
-        output_means = {}
-        output_stds = {}
+        output_means, output_stds = {}, {}
         for i, field_name in enumerate(self.output_fields):
             field_data = np.hstack(output_fields_all[i])
             output_means[field_name] = float(field_data.mean())
             output_stds[field_name] = float(field_data.std()) or 1.0
-        
+
         # Conditional inputs
         cond_all = np.vstack(cond_all)
         cond_mean = cond_all.mean(axis=0)
         cond_std = cond_all.std(axis=0)
         cond_std[cond_std == 0] = 1.0
-        
+
         return {
             'pos': {'min': pos_min, 'max': pos_max, 'range': pos_range},
             'sdf': {'min': sdf_min, 'max': sdf_max, 'range': sdf_range},
+            'normal': {'min': normal_min, 'max': normal_max, 'range': normal_range},
+            'bl': {'min': bl_min, 'max': bl_max, 'range': bl_range},
             'output': {'mean': output_means, 'std': output_stds},
             'cond': {'mean': cond_mean, 'std': cond_std}
         }
 
     def process_dataset(self):
-        """Process the dataset into PyG Data objects."""
+        """Convert dataset into PyG Data objects."""
         processed_data_list = []
         c = self.coef_norm
-        
+
         for i, idx in enumerate(self.idx_list):
             data = self.data_list[idx]
-            
+
             pos = data[:, self.pos_indices]
             sdf = data[:, self.sdf_index]
+            normals = data[:, self.normal_indices]
             airfoil_bool = data[:, self.airfoil_index]
-            
+
             # Subsample if requested
             if self.num_points and pos.shape[0] > self.num_points:
                 sel = np.random.choice(pos.shape[0], self.num_points, replace=False)
-                pos = pos[sel]
-                sdf = sdf[sel]
-                airfoil_bool = airfoil_bool[sel]
+                pos, sdf, normals, airfoil_bool = pos[sel], sdf[sel], normals[sel], airfoil_bool[sel]
                 data = data[sel]
-            
-            # Normalize pos
-            pmin, prange = c['pos']['min'], c['pos']['range']
-            pos_n = 2 * (pos - pmin) / prange - 1
-            
-            # Normalize SDF
-            smin, srange = c['sdf']['min'], c['sdf']['range']
-            sdf_n = 2 * ((sdf - smin) / srange) - 1
-            
-            # Inputs
-            input_feats = torch.tensor(np.concatenate([pos_n, sdf_n[:, None]], axis=1), dtype=torch.float)
+
+            # Compute BL mask
+            sample = {'point_cloud_field/distance_function': sdf}
+            bl_mask = make_bl_layer(sample, thickness=self.bl_thickness, decay=self.bl_decay)
+
+            # Normalize all inputs
+            pos_n = 2 * (pos - c['pos']['min']) / c['pos']['range'] - 1
+            sdf_n = 2 * ((sdf - c['sdf']['min']) / c['sdf']['range']) - 1
+            normals_n = 2 * (normals - c['normal']['min']) / c['normal']['range'] - 1
+            bl_n = 2 * ((bl_mask - c['bl']['min']) / c['bl']['range']) - 1
+
+            # Inputs: [x, y, sdf, nx, ny, bl_mask]
+            input_feats = np.concatenate([pos_n, sdf_n[:, None], normals_n, bl_n[:, None]], axis=1)
             node_kwargs = {
-                'input': input_feats,
+                'input': torch.tensor(input_feats, dtype=torch.float),
                 'pos': torch.tensor(pos_n, dtype=torch.float),
                 'is_airfoil': torch.tensor(airfoil_bool, dtype=torch.float)
             }
-            
-            # Always add outputs (train/val/test)
+
+            # Outputs
             output_data = []
             for j, field_name in enumerate(self.output_fields):
                 field_data = data[:, self.output_indices[j]]
@@ -325,44 +396,43 @@ class AirfransFlowDataset(Dataset):
                 std_val = c['output']['std'][field_name]
                 field_norm = (field_data - mean_val) / std_val
                 output_data.append(field_norm[:, None])
-            
             node_kwargs['output'] = torch.tensor(np.hstack(output_data), dtype=torch.float)
-            
+
             # Conditional inputs
             inlet_vel = np.mean(data[:, self.inlet_vel_indices], axis=0)
             cond = np.concatenate([self.geom_latents[i], inlet_vel])
             cm, cs = c['cond']['mean'], c['cond']['std']
             cond_n = (cond - cm) / cs
             node_kwargs['cond'] = torch.tensor(cond_n, dtype=torch.float).unsqueeze(0)
-            
+
             processed_data_list.append(Data(**node_kwargs))
-        
+
         return processed_data_list
 
     def split_val(self, val_size, seed=None):
         rng = np.random.RandomState(seed)
         chosen = rng.choice(self.idx_list, size=val_size, replace=False).tolist()
         train_idx = [i for i in self.idx_list if i not in chosen]
-        
+
         train_ds = AirfransFlowDataset(
-            self.data_list, 
-            self.data_names, 
+            self.data_list,
+            self.data_names,
             self._raw_geom_latents,
-            mode='train', 
+            mode='train',
             num_points=self.num_points,
             idx_list=train_idx
         )
-        
+
         val_ds = AirfransFlowDataset(
-            self.data_list, 
-            self.data_names, 
+            self.data_list,
+            self.data_names,
             self._raw_geom_latents,
-            mode='val', 
+            mode='val',
             coef_norm=train_ds.coef_norm,
             num_points=self.num_points,
             idx_list=chosen
         )
-        
+
         return train_ds, val_ds
 
     def len(self):
@@ -370,6 +440,7 @@ class AirfransFlowDataset(Dataset):
 
     def get(self, idx):
         return self.data_list[idx]
+
 
 
 def subsample_dataset(dataset, num_points, seed=None):
@@ -418,3 +489,38 @@ def subsample_dataset(dataset, num_points, seed=None):
         out.append(new_data)
     return out
 
+from typing import Literal
+
+def make_bl_layer(sample, thickness: float = 0.03, decay: Literal['linear', 'exponential', 'squared'] = 'squared'):
+    """
+    Compute a boundary-layer mask based on the normalized inverse of the SDF field.
+
+    Args:
+        sample: dict or object with key 'point_cloud_field/distance_function' (1D np.ndarray)
+        thickness: relative thickness (0 < thickness <= 1)
+        decay: 'linear', 'exponential', or 'squared'
+    Returns:
+        np.ndarray of shape (N,), boundary-layer mask in [0, 1]
+    """
+    if not (0 < thickness <= 1):
+        raise ValueError('Thickness should be in (0, 1].')
+
+    def threshold(var, value):
+        mask = var > value
+        var = var.copy()
+        var[~mask] = 0
+        if mask.any():
+            var[mask] = (var[mask] - value) / (var[mask].max() - value)
+        return var
+
+    df = sample['point_cloud_field/distance_function'].max() - sample['point_cloud_field/distance_function']
+    df = df / df.max()
+
+    if decay == 'squared':
+        return threshold(df, 1 - thickness) ** 2
+    elif decay == 'linear':
+        return threshold(df, 1 - thickness)
+    elif decay == 'exponential':
+        return (np.exp(threshold(df, 1 - thickness)) - 1) / (np.exp(1) - 1)
+    else:
+        raise ValueError(f"Unknown decay type: {decay}")

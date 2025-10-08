@@ -34,12 +34,13 @@ def training_step(
                 scalar_loss += ((scalar_pred - features_scalars) ** 2).mean()
         else:
             features_recon = func_rep(coords)
-
-        field_loss = ((features_recon - features) ** 2).mean()
-            
+        
+        # Compute MSE loss
+        mse_components = ((features_recon - features) ** 2).mean(dim=0)  # tensor of length = n_outputs
+        field_loss = mse_components.mean()             
         loss = field_loss + 0.5*scalar_loss
 
-    outputs = {"loss": loss, "field_loss": field_loss, "scalar_loss": scalar_loss}
+    outputs = {"loss": loss, "field_loss": field_loss, "scalar_loss": scalar_loss, "field_loss_components": mse_components.detach()}
 
     if return_reconstructions:
         outputs["reconstructions"] = features_recon
